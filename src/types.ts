@@ -7,6 +7,7 @@ export interface CardDef {
   label: string;
   short: string;
   allowance: number;
+  perGameweek: boolean;
   color: string;
   needsMatch: boolean;
   needsTarget: boolean;
@@ -14,18 +15,18 @@ export interface CardDef {
 }
 
 export const CARDS: Record<CardType, CardDef> = {
-  captain: {label:'Captain', short:'CAPT', allowance:Infinity, color:'var(--pitch)', needsMatch:true, needsTarget:false, desc:'Doubles one match (base+scoreline+unique)'},
-  wildcard:{label:'Wild Card', short:'WILD', allowance:2, color:'var(--gold)', needsMatch:false, needsTarget:false, desc:'Doubles your whole GW (stacks: 1=2x, 2=4x)'},
-  chaos:   {label:'Chaos Card', short:'CHAOS', allowance:1, color:'var(--red)', needsMatch:false, needsTarget:false, desc:"Doubles EVERYONE's GW points"},
-  floor:   {label:'Floor Card', short:'FLOOR', allowance:3, color:'var(--blue)', needsMatch:false, needsTarget:false, desc:'Guarantees 5 pts min for the GW'},
-  mirror:  {label:'Mirror Card', short:'MIRR', allowance:5, color:'var(--violet)', needsMatch:true, needsTarget:true, desc:"Forces target's prediction to be overwritten by yours"},
-  nemesis: {label:'Nemesis Card', short:'NEM', allowance:3, color:'var(--maroon)', needsMatch:false, needsTarget:true, desc:'Outscore target this GW, steal 3 pts'}
+  captain: {label:'Captain', short:'CAPT', allowance:1, perGameweek:true, color:'var(--pitch)', needsMatch:true, needsTarget:false, desc:'1 available every GW · doubles one match (base+scoreline+unique)'},
+  wildcard:{label:'Wild Card', short:'WILD', allowance:2, perGameweek:false, color:'var(--gold)', needsMatch:false, needsTarget:false, desc:'2 available for the season · doubles your whole GW (stacks: 1=2x, 2=4x)'},
+  chaos:   {label:'Chaos Card', short:'CHAOS', allowance:1, perGameweek:false, color:'var(--red)', needsMatch:false, needsTarget:false, desc:'1 available for the season · doubles EVERYONE\'s GW points'},
+  floor:   {label:'Floor Card', short:'FLOOR', allowance:3, perGameweek:false, color:'var(--blue)', needsMatch:false, needsTarget:false, desc:'3 available for the season · guarantees 5 pts minimum for the GW'},
+  mirror:  {label:'Mirror Card', short:'MIRR', allowance:5, perGameweek:false, color:'var(--violet)', needsMatch:true, needsTarget:true, desc:'5 available for the season · forces target\'s prediction to be overwritten by yours'},
+  nemesis: {label:'Nemesis', short:'NEM', allowance:3, perGameweek:false, color:'var(--maroon)', needsMatch:false, needsTarget:true, desc:'3 available for the season · outscore target this GW, steal 3 pts'}
 };
 
 export interface Match {
   id: string;
   gw: number;
-  matchNo: number; // 1-10
+  matchNo: number;
   home: string;
   away: string;
   date: string;
@@ -36,7 +37,7 @@ export interface Match {
 export interface Prediction {
   matchId: string;
   player: string;
-  home: number | null; // null if unpredicted
+  home: number | null;
   away: number | null;
 }
 
@@ -46,7 +47,7 @@ export interface CardEntry {
   player: string;
   card: CardType;
   matchNo?: number;
-  target?: string;
+  target?: Player;
   note?: string;
   ts: number;
 }
@@ -64,5 +65,5 @@ export interface PlayerGWScore {
   gw: number;
   rawPoints: number;
   finalPoints: number;
-  breakdown: Record<string, MatchScore>; // keyed by matchId
+  breakdown: Record<string, MatchScore>;
 }
