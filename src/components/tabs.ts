@@ -1,9 +1,9 @@
-export function renderTabs(activeTab: string): string {
+export function renderTabs(activeTab: string, isAdmin = false): string {
   const tabs = [
     { id: 'leaderboard', label: 'Leaderboard' },
     { id: 'gameweek', label: 'Gameweek' },
     { id: 'cardlog', label: 'Card Log' },
-    { id: 'fixtures', label: 'Fixtures Setup' }
+    ...(isAdmin ? [{ id: 'fixtures', label: 'Fixtures Setup' }] : [])
   ];
 
   return `
