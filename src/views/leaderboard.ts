@@ -7,7 +7,7 @@ const PLAYER_COLORS: Record<Player, string> = {
   Samarth: '#e0b94d',
   Dhairya: '#4c94d9',
   Luvi: '#a24450',
-  Claude: '#5ec4b6'
+  Claude: '#5cc7b9ff'
 };
 
 interface RacePoint {
@@ -26,6 +26,26 @@ interface RaceChartData {
 }
 
 let raceChartData: RaceChartData | null = null;
+
+function getRacePointForPlayer(
+  player: Player,
+  index: number,
+  data: RaceChartData,
+  xAt: (i: number) => number,
+  yAt: (v: number) => number
+) {
+  const value = data.cumulative[player][index];
+  const tiedPlayers = PLAYERS.filter(p => data.cumulative[p][index] === value);
+
+  if (tiedPlayers.length < 2) {
+    return { x: xAt(index), y: yAt(value) };
+  }
+
+  const ordered = tiedPlayers.slice().sort((a, b) => PLAYERS.indexOf(a) - PLAYERS.indexOf(b));
+  const laneOffset = (ordered.indexOf(player) - (ordered.length - 1) / 2) * 3.8;
+
+  return { x: xAt(index), y: yAt(value) + laneOffset };
+}
 
 function computeLeaderboardData() {
   const totals: Record<string, number> = {};
@@ -154,13 +174,19 @@ function renderRaceChart(data: RaceChartData | null): string {
 
   const dense = n > 40;
   const lines = PLAYERS.map(p => {
-    const pts = data.cumulative[p].map((v, i) => `${xAt(i)},${yAt(v)}`).join(' ');
+    const pts = data.cumulative[p].map((_, i) => {
+      const point = getRacePointForPlayer(p, i, data, xAt, yAt);
+      return `${point.x},${point.y}`;
+    }).join(' ');
+
     const color = PLAYER_COLORS[p];
     const dots = dense
       ? ''
-      : data.cumulative[p].map((v, i) =>
-        `<circle class="race-dot" data-idx="${i}" data-player="${p}" cx="${xAt(i)}" cy="${yAt(v)}" r="2.8" fill="${color}" />`
-      ).join('');
+      : data.cumulative[p].map((_, i) => {
+        const point = getRacePointForPlayer(p, i, data, xAt, yAt);
+        return `<circle class="race-dot" data-idx="${i}" data-player="${p}" cx="${point.x}" cy="${point.y}" r="2.8" fill="${color}" />`;
+      }).join('');
+
     return `
       <polyline class="race-line-glow" points="${pts}" stroke="${color}" />
       <polyline class="race-line" points="${pts}" stroke="${color}" />
@@ -310,9 +336,9 @@ export function attachLeaderboardHandlers() {
     svg.querySelectorAll('.race-hover-dot').forEach(dot => {
       const el = dot as SVGCircleElement;
       const player = el.dataset.player as Player;
-      const y = yAt(data.cumulative[player][index]);
-      el.setAttribute('cx', String(x));
-      el.setAttribute('cy', String(y));
+      const point = getRacePointForPlayer(player, index, data, xAt, yAt);
+      el.setAttribute('cx', String(point.x));
+      el.setAttribute('cy', String(point.y));
       el.setAttribute('visibility', 'visible');
     });
   };
