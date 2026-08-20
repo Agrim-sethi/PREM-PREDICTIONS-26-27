@@ -57,9 +57,12 @@ export const store = {
   },
 
   async seedFixtures(fixtures: FixtureSeed[]): Promise<void> {
-    // Only seed an empty match collection. Existing match/result records are never overwritten.
-    if (this.state.matches.length > 0) return;
-    await Promise.all(fixtures.map(fixture => {
+    // Fill any missing GW/match slots from the supplied CSV-derived list.
+    // Existing matches, including results or admin edits, are never overwritten.
+    const missing = fixtures.filter(fixture => !this.state.matches.some(m => m.gw === fixture.gw && m.matchNo === fixture.matchNo));
+    if (!missing.length) return;
+
+    await Promise.all(missing.map(fixture => {
       const match: Match = {
         id: fixture.id,
         gw: fixture.gw,
