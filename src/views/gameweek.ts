@@ -5,6 +5,7 @@ import { getProfile, isAdmin } from '../auth';
 
 let activeGW = 1;
 let autosaveTimer: ReturnType<typeof setInterval> | null = null;
+let lockingGW = false;
 const draftPredictions = new Map<string, Prediction>();
 let lastSaveStatus: 'idle' | 'dirty' | 'saving' | 'saved' | 'error' = 'idle';
 
@@ -14,7 +15,10 @@ function setSaveStatus(status: typeof lastSaveStatus, message = '') {
   lastSaveStatus = status;
   const el = document.getElementById('pred-save-status');
   if (!el) return;
-  const states = { idle: ['', ''], dirty: ['•', 'Unsaved changes'], saving: ['↻', 'Saving…'], saved: ['✓', 'Saved'], error: ['!', message || 'Save failed'] } as const;
+  const states = {
+    idle: ['', ''], dirty: ['•', 'Unsaved changes'], saving: ['↻', 'Saving…'],
+    saved: ['✓', 'Saved'], error: ['!', message || 'Save failed']
+  } as const;
   const [icon, text] = states[status];
   el.innerHTML = text ? `<span class="pred-save-indicator pred-save-${status}"><span class="pred-save-icon">${icon}</span>${text}</span>` : '';
 }
@@ -41,7 +45,7 @@ function readEditableInputs(): Record<string, Prediction> {
 }
 
 function mergeDraftsFromInputs() {
-  if (store.isGameweekLocked(activeGW) && !isAdmin()) return;
+  if (!isAdmin() && store.isGameweekLocked(activeGW)) return;
   const preds = readEditableInputs();
   Object.entries(preds).forEach(([key, pred]) => draftPredictions.set(key, pred));
   if (Object.keys(preds).length) setSaveStatus('dirty');
@@ -51,26 +55,28 @@ function mergedPrediction(matchId: string, player: Player): Prediction | undefin
   return draftPredictions.get(predictionKey(matchId, player)) ?? store.getPrediction(matchId, player);
 }
 
-async function saveDraftPredictions(): Promise<void> {
-  if (!draftPredictions.size) { setSaveStatus('saved'); return; }
+async function saveDraftPredictions(): Promise<boolean> {
+  if (!draftPredictions.size) { setSaveStatus('saved'); return true; }
   const entries = [...draftPredictions.entries()];
   setSaveStatus('saving');
   try {
-    for (const [key, pred] of entries) {
+    await Promise.all(entries.map(async ([key, pred]) => {
       await store.setPrediction(pred);
       if (draftPredictions.get(key) === pred) draftPredictions.delete(key);
-    }
+    }));
     setSaveStatus('saved');
+    return true;
   } catch (error) {
     setSaveStatus('error', error instanceof Error ? error.message : 'Save failed.');
+    return false;
   }
 }
 
 function startAutosave() {
   if (autosaveTimer) clearInterval(autosaveTimer);
   autosaveTimer = setInterval(() => {
-    if (!draftPredictions.size) return;
-    if (store.isGameweekLocked(activeGW) && !isAdmin()) {
+    if (lockingGW || !draftPredictions.size) return;
+    if (!isAdmin() && store.isGameweekLocked(activeGW)) {
       draftPredictions.clear();
       return;
     }
@@ -142,10 +148,11 @@ export function renderGameweek(): string {
   html += `</div>`;
 
   const saveDisabled = !admin && locked;
+  const lockDisabled = lockingGW;
   html += `<div style="margin-top:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <button id="save-all-preds" ${saveDisabled ? 'disabled' : ''} style="background:${saveDisabled ? 'var(--panel)' : 'var(--pitch)'};color:${saveDisabled ? 'var(--muted)' : '#0d1712'};padding:10px 20px;border:${saveDisabled ? '1px solid var(--line)' : 'none'};border-radius:4px;font-family:'Oswald',sans-serif;font-size:14px;font-weight:bold;cursor:${saveDisabled ? 'not-allowed' : 'pointer'};">SAVE ${admin ? 'ALL CHANGES' : 'MY PREDICTIONS'} FOR GW${gw}</button>
-    ${admin ? `<button id="toggle-gw-lock" style="background:${locked ? 'var(--panel)' : 'var(--red)'};color:${locked ? 'var(--red)' : '#fff'};border:1px solid var(--red);padding:10px 18px;border-radius:4px;font-family:'Oswald',sans-serif;font-size:14px;font-weight:800;cursor:pointer;text-transform:uppercase;">${locked ? 'UNLOCK PREDICTIONS' : 'LOCK PREDICTIONS'}</button>` : ''}
-    <span style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${locked ? 'Only the admin can edit while this GW is locked.' : 'Auto-saves every 3 seconds.'}</span>
+    ${admin ? `<button id="toggle-gw-lock" ${lockDisabled ? 'disabled' : ''} style="background:${locked ? 'var(--panel)' : 'var(--red)'};color:${locked ? 'var(--red)' : '#fff'};border:1px solid var(--red);padding:10px 18px;border-radius:4px;font-family:'Oswald',sans-serif;font-size:14px;font-weight:800;cursor:${lockDisabled ? 'wait' : 'pointer'};text-transform:uppercase;">${lockingGW ? 'LOCKING…' : (locked ? 'UNLOCK PREDICTIONS' : 'LOCK PREDICTIONS')}</button>` : ''}
+    <span style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${lockingGW ? 'Saving predictions and applying the lock…' : (locked ? 'Only the admin can edit while this GW is locked.' : 'Auto-saves every 3 seconds.')}</span>
   </div>`;
 
   const scores = calculateGameweekScores(gw, matches, store.state.predictions, gwCards);
@@ -160,6 +167,7 @@ export function attachGameweekHandlers(reRender: () => void) {
   const gwInput = document.getElementById('gw-select') as HTMLInputElement | HTMLSelectElement | null;
   if (gwInput) {
     const applyGw = () => {
+      if (lockingGW) return;
       mergeDraftsFromInputs();
       const next = parseInt(gwInput.value, 10);
       if (!Number.isInteger(next) || next < 1 || next > 38 || next === activeGW) return;
@@ -174,6 +182,7 @@ export function attachGameweekHandlers(reRender: () => void) {
   document.querySelectorAll('.pred-input:not([readonly])').forEach(input => input.addEventListener('input', mergeDraftsFromInputs));
 
   document.getElementById('save-all-preds')?.addEventListener('click', async () => {
+    if (lockingGW) return;
     if (!admin && store.isGameweekLocked(activeGW)) {
       setSaveStatus('error', 'This gameweek is locked by the administrator.');
       return;
@@ -184,26 +193,39 @@ export function attachGameweekHandlers(reRender: () => void) {
   });
 
   document.getElementById('toggle-gw-lock')?.addEventListener('click', async () => {
-    if (!admin) return;
-    mergeDraftsFromInputs();
+    if (!admin || lockingGW) return;
+
     const locked = store.isGameweekLocked(activeGW);
-    const warning = locked
-      ? `Unlock GW${activeGW}? Players will be able to edit their predictions again.`
-      : `Lock GW${activeGW}? Players will not be able to change predictions until you unlock it.`;
+    const targetLocked = !locked;
+    const warning = targetLocked
+      ? `Lock GW${activeGW}? Players will not be able to change predictions until you unlock it.`
+      : `Unlock GW${activeGW}? Players will be able to edit their predictions again.`;
     if (!window.confirm(warning)) return;
+
+    lockingGW = true;
+    reRender();
+
     try {
-      if (!locked && draftPredictions.size) await saveDraftPredictions();
-      await store.setGameweekLocked(activeGW, !locked);
+      if (targetLocked) {
+        mergeDraftsFromInputs();
+        const saved = await saveDraftPredictions();
+        if (!saved) throw new Error('Predictions could not be saved, so the GW was not locked.');
+      }
+
+      await store.setGameweekLocked(activeGW, targetLocked);
       draftPredictions.clear();
       setSaveStatus('saved');
-      reRender();
     } catch (error) {
       setSaveStatus('error', error instanceof Error ? error.message : 'Lock update failed.');
+    } finally {
+      lockingGW = false;
+      reRender();
     }
   });
 
   if (admin) {
     document.querySelectorAll('.save-res-btn').forEach(btn => btn.addEventListener('click', async e => {
+      if (lockingGW) return;
       const matchId = (e.currentTarget as HTMLElement).dataset.match;
       if (!matchId) return;
       const home = Number((document.querySelector(`.res-input[data-match="${matchId}"][data-team="home"]`) as HTMLInputElement)?.value);
@@ -211,7 +233,14 @@ export function attachGameweekHandlers(reRender: () => void) {
       if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) return;
       const match = store.getMatch(matchId);
       if (!match) return;
-      try { await store.addOrUpdateMatch({ ...match, result: { home, away } }); reRender(); } catch (error) { setSaveStatus('error', error instanceof Error ? error.message : 'Result save failed.'); }
+      try {
+        await store.addOrUpdateMatch({ ...match, result: { home, away } });
+        reRender();
+      } catch (error) {
+        setSaveStatus('error', error instanceof Error ? error.message : 'Result save failed.');
+      }
     }));
   }
+
+  void profile;
 }
