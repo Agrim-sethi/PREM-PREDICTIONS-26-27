@@ -75,8 +75,8 @@ function renderApp() {
 watchAuth(profile => {
   authReady = true;
   if (profile) {
-    store.load(renderApp, async (matches) => {
-      if (isAdmin() && matches.length === 0) {
+    store.load(renderApp, async () => {
+      if (isAdmin()) {
         await store.seedFixtures(FIXTURES);
         renderApp();
       }
