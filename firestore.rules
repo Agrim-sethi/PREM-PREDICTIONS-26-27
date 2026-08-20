@@ -19,16 +19,164 @@ service cloud.firestore {
       );
     }
 
-    // Resolve the gameweek for a prediction from its referenced fixture.
-    function predictionGW() {
-      return get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.gw;
+    function knownPlayer(player) {
+      return player in ['Agrim', 'Samarth', 'Dhairya', 'Luvi', 'Claude'];
     }
 
-    // Lock documents live in the existing matches collection as __gwlock_<GW>.
-    // Missing lock document means the GW is OPEN. A true value means LOCKED.
+    function knownCard(card) {
+      return card in ['captain', 'wildcard', 'chaos', 'floor', 'mirror', 'nemesis'];
+    }
+
+    function validScore(score) {
+      return score == null || (score is int && score >= 0 && score <= 30);
+    }
+
+    function validGameweek(gw) {
+      return gw is int && gw >= 1 && gw <= 38;
+    }
+
+    function gwOpen(gw) {
+      return validGameweek(gw) &&
+        (
+          !exists(/databases/$(database)/documents/matches/__gwlock_$(gw)) ||
+          get(/databases/$(database)/documents/matches/__gwlock_$(gw)).data.locked != true
+        );
+    }
+
+    function validPrediction(predictionId) {
+      return request.resource.data.keys().hasOnly(['matchId', 'player', 'home', 'away']) &&
+        request.resource.data.matchId is string &&
+        knownPlayer(request.resource.data.player) &&
+        predictionId == request.resource.data.matchId + '_' + request.resource.data.player &&
+        exists(/databases/$(database)/documents/matches/$(request.resource.data.matchId)) &&
+        validScore(request.resource.data.home) &&
+        validScore(request.resource.data.away);
+    }
+
     function predictionOpen() {
-      return !exists(/databases/$(database)/documents/matches/__gwlock_$(predictionGW())) ||
-        get(/databases/$(database)/documents/matches/__gwlock_$(predictionGW())).data.locked != true;
+      return gwOpen(get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.gw);
+    }
+
+    function validCardSlot(cardId, player, card, gw) {
+      return (
+        card == 'captain' && (
+          (gw == 1 && cardId == player + '_captain_gw1') ||
+          (gw == 2 && cardId == player + '_captain_gw2') ||
+          (gw == 3 && cardId == player + '_captain_gw3') ||
+          (gw == 4 && cardId == player + '_captain_gw4') ||
+          (gw == 5 && cardId == player + '_captain_gw5') ||
+          (gw == 6 && cardId == player + '_captain_gw6') ||
+          (gw == 7 && cardId == player + '_captain_gw7') ||
+          (gw == 8 && cardId == player + '_captain_gw8') ||
+          (gw == 9 && cardId == player + '_captain_gw9') ||
+          (gw == 10 && cardId == player + '_captain_gw10') ||
+          (gw == 11 && cardId == player + '_captain_gw11') ||
+          (gw == 12 && cardId == player + '_captain_gw12') ||
+          (gw == 13 && cardId == player + '_captain_gw13') ||
+          (gw == 14 && cardId == player + '_captain_gw14') ||
+          (gw == 15 && cardId == player + '_captain_gw15') ||
+          (gw == 16 && cardId == player + '_captain_gw16') ||
+          (gw == 17 && cardId == player + '_captain_gw17') ||
+          (gw == 18 && cardId == player + '_captain_gw18') ||
+          (gw == 19 && cardId == player + '_captain_gw19') ||
+          (gw == 20 && cardId == player + '_captain_gw20') ||
+          (gw == 21 && cardId == player + '_captain_gw21') ||
+          (gw == 22 && cardId == player + '_captain_gw22') ||
+          (gw == 23 && cardId == player + '_captain_gw23') ||
+          (gw == 24 && cardId == player + '_captain_gw24') ||
+          (gw == 25 && cardId == player + '_captain_gw25') ||
+          (gw == 26 && cardId == player + '_captain_gw26') ||
+          (gw == 27 && cardId == player + '_captain_gw27') ||
+          (gw == 28 && cardId == player + '_captain_gw28') ||
+          (gw == 29 && cardId == player + '_captain_gw29') ||
+          (gw == 30 && cardId == player + '_captain_gw30') ||
+          (gw == 31 && cardId == player + '_captain_gw31') ||
+          (gw == 32 && cardId == player + '_captain_gw32') ||
+          (gw == 33 && cardId == player + '_captain_gw33') ||
+          (gw == 34 && cardId == player + '_captain_gw34') ||
+          (gw == 35 && cardId == player + '_captain_gw35') ||
+          (gw == 36 && cardId == player + '_captain_gw36') ||
+          (gw == 37 && cardId == player + '_captain_gw37') ||
+          (gw == 38 && cardId == player + '_captain_gw38')
+        )
+      ) || (
+        card == 'wildcard' && (
+          cardId == player + '_wildcard_1' ||
+          cardId == player + '_wildcard_2'
+        )
+      ) || (
+        card == 'chaos' && cardId == player + '_chaos_1'
+      ) || (
+        card == 'floor' && (
+          cardId == player + '_floor_1' ||
+          cardId == player + '_floor_2' ||
+          cardId == player + '_floor_3'
+        )
+      ) || (
+        card == 'mirror' && (
+          cardId == player + '_mirror_1' ||
+          cardId == player + '_mirror_2' ||
+          cardId == player + '_mirror_3' ||
+          cardId == player + '_mirror_4' ||
+          cardId == player + '_mirror_5'
+        )
+      ) || (
+        card == 'nemesis' && (
+          cardId == player + '_nemesis_1' ||
+          cardId == player + '_nemesis_2' ||
+          cardId == player + '_nemesis_3'
+        )
+      );
+    }
+
+    function validTarget(player, target) {
+      return knownPlayer(target) && target != player;
+    }
+
+    function validNote(note) {
+      return note == null || (note is string && note.size() <= 200);
+    }
+
+    function validCard(cardId) {
+      let card = request.resource.data.card;
+      let player = request.resource.data.player;
+      let gw = request.resource.data.gw;
+      return request.resource.data.keys().hasOnly([
+        'id', 'slotId', 'gw', 'player', 'card', 'matchNo', 'target', 'note', 'createdByUid', 'ts'
+      ]) &&
+        request.resource.data.id == cardId &&
+        request.resource.data.slotId == cardId &&
+        request.resource.data.createdByUid == request.auth.uid &&
+        request.resource.data.ts is int &&
+        knownPlayer(player) &&
+        knownCard(card) &&
+        validGameweek(gw) &&
+        validCardSlot(cardId, player, card, gw) &&
+        validNote(request.resource.data.note) &&
+        (
+          (card == 'captain' &&
+            request.resource.data.matchNo is int &&
+            request.resource.data.matchNo >= 1 &&
+            request.resource.data.matchNo <= 10 &&
+            request.resource.data.target == null) ||
+          (card == 'wildcard' &&
+            request.resource.data.matchNo == null &&
+            request.resource.data.target == null) ||
+          (card == 'chaos' &&
+            request.resource.data.matchNo == null &&
+            request.resource.data.target == null) ||
+          (card == 'floor' &&
+            request.resource.data.matchNo == null &&
+            request.resource.data.target == null) ||
+          (card == 'mirror' &&
+            request.resource.data.matchNo is int &&
+            request.resource.data.matchNo >= 1 &&
+            request.resource.data.matchNo <= 10 &&
+            validTarget(player, request.resource.data.target)) ||
+          (card == 'nemesis' &&
+            request.resource.data.matchNo == null &&
+            validTarget(player, request.resource.data.target))
+        );
     }
 
     match /matches/{matchId} {
@@ -38,12 +186,12 @@ service cloud.firestore {
 
     match /cards/{cardId} {
       allow read: if signedIn();
-      allow create: if isAdmin() || (
+      allow create: if validCard(cardId) && (
+        isAdmin() || (
         isPlayer(request.resource.data.player) &&
-        request.resource.data.createdByUid == request.auth.uid &&
-        request.resource.data.id == cardId &&
-        request.resource.data.slotId == cardId &&
+        gwOpen(request.resource.data.gw) &&
         !exists(/databases/$(database)/documents/cards/$(cardId))
+        )
       );
       allow update, delete: if isAdmin();
     }
@@ -52,17 +200,22 @@ service cloud.firestore {
       allow read: if signedIn();
 
       // Admin can always create a prediction, even while the GW is locked.
-      allow create: if isAdmin() || (
+      allow create: if validPrediction(predictionId) && (
+        isAdmin() || (
         isPlayer(request.resource.data.player) &&
         predictionOpen()
+        )
       );
 
       // Players can only modify their own prediction while the GW is open.
       // Admin can always modify predictions.
-      allow update: if isAdmin() || (
+      allow update: if validPrediction(predictionId) && (
+        isAdmin() || (
         isPlayer(request.resource.data.player) &&
         resource.data.player == request.resource.data.player &&
+        resource.data.matchId == request.resource.data.matchId &&
         predictionOpen()
+        )
       );
 
       allow delete: if isAdmin();
