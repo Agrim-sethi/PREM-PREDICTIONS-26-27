@@ -26,7 +26,19 @@ service cloud.firestore {
 
     match /cards/{cardId} {
       allow read: if signedIn();
-      allow create: if isAdmin() || isPlayer(request.resource.data.player);
+
+      // Card plays are immutable slot documents. A normal player can create
+      // only a card play created by their current authenticated UID. The slot
+      // must not already exist, preventing duplicate Captain / finite-card use.
+      allow create: if isAdmin() || (
+        signedIn() &&
+        request.resource.data.createdByUid == request.auth.uid &&
+        request.resource.data.id == cardId &&
+        request.resource.data.slotId == cardId &&
+        !exists(/databases/$(database)/documents/cards/$(cardId))
+      );
+
+      // Players never edit an existing card play. Admin alone can correct or delete.
       allow update, delete: if isAdmin();
     }
 
