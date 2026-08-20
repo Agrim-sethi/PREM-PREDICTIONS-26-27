@@ -134,9 +134,9 @@ function renderRaceChart(data: RaceChartData | null): string {
     `;
   }
 
-  const W = 760;
-  const H = 340;
-  const pad = { top: 24, right: 24, bottom: 44, left: 44 };
+  const W = 700;
+  const H = 280;
+  const pad = { top: 18, right: 20, bottom: 36, left: 38 };
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
   const n = data.points.length;
@@ -307,9 +307,9 @@ export function attachLeaderboardHandlers() {
   if (!svg || !hit || !crosshair || !statsEl) return;
 
   const data = raceChartData;
-  const W = 760;
-  const H = 340;
-  const pad = { top: 24, right: 24, bottom: 44, left: 44 };
+  const W = 700;
+  const H = 280;
+  const pad = { top: 18, right: 20, bottom: 36, left: 38 };
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
   const n = data.points.length;
