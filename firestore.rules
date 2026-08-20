@@ -26,7 +26,8 @@ service cloud.firestore {
 
     match /cards/{cardId} {
       allow read: if signedIn();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() || isPlayer(request.resource.data.player);
+      allow update, delete: if isAdmin();
     }
 
     match /predictions/{predictionId} {
