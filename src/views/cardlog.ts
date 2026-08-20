@@ -27,12 +27,17 @@ function validateCardFields(card: CardType, matchNo: number | null, target: Play
   return null;
 }
 
-function cardOptions(player: Player, gw: number): string {
+function cardOptions(player: Player, gw: number, locked = false): string {
   return Object.entries(CARDS).map(([key, def]) => {
     const card = key as CardType;
     const remaining = store.getCardRemaining(player, card, gw);
-    const disabled = remaining <= 0;
-    return `<option value="${card}" ${disabled ? 'disabled' : ''}>${def.label} · ${def.perGameweek ? (disabled ? 'USED THIS GW' : '1 THIS GW') : `${remaining} LEFT`}</option>`;
+    const disabled = locked || remaining <= 0;
+    const label = locked
+      ? 'GW LOCKED'
+      : def.perGameweek
+        ? (disabled ? 'USED THIS GW' : '1 THIS GW')
+        : `${remaining} LEFT`;
+    return `<option value="${card}" ${disabled ? 'disabled' : ''}>${def.label} · ${label}</option>`;
   }).join('');
 }
 
@@ -55,19 +60,20 @@ function syncDependentFields() {
 
 function playForm(player: Player | null, admin: boolean): string {
   const actualPlayer = player ?? PLAYERS[0];
+  const locked = !admin && store.isGameweekLocked(1);
   return `<div class="panel-box" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;">
     <h2 style="font-family:'Oswald',sans-serif;color:var(--muted);margin-bottom:12px;font-size:14px;text-transform:uppercase;">${admin ? 'Admin Card Controls' : 'Play Your Card'}</h2>
     <div style="font-size:11px;color:${admin ? 'var(--gold)' : 'var(--pitch)'};font-family:'JetBrains Mono',monospace;margin-bottom:12px;">${admin ? 'ADMIN OVERRIDE · LOG OR REMOVE ANY PLAYER CARD' : `PLAYING AS ${actualPlayer.toUpperCase()} · ONLY YOUR CARD INVENTORY IS AVAILABLE`}</div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
       <div><label>Gameweek</label><input type="number" id="fc-gw" min="1" max="38" value="1"></div>
       ${admin ? `<div><label>Player</label><select id="fc-player">${PLAYERS.map(p => `<option value="${p}">${p}</option>`).join('')}</select></div>` : `<input type="hidden" id="fc-player" value="${actualPlayer}"><div><label>Player</label><input value="${actualPlayer}" disabled></div>`}
-      <div><label>Card</label><select id="fc-card">${cardOptions(actualPlayer, 1)}</select></div>
+      <div><label>Card</label><select id="fc-card" ${locked ? 'disabled' : ''}>${cardOptions(actualPlayer, 1, locked)}</select></div>
       <div><label>Match No. <span style="color:var(--muted)">(Captain/Mirror only)</span></label><input type="number" id="fc-match" min="1" max="10" placeholder="—"></div>
       <div><label>Target <span style="color:var(--muted)">(Mirror/Nemesis only)</span></label><select id="fc-target"><option value="">—</option>${PLAYERS.filter(p => p !== actualPlayer).map(p => `<option value="${p}">${p}</option>`).join('')}</select></div>
       <div><label>Note</label><input type="text" id="fc-note" placeholder="Reasoning / receipt..."></div>
     </div>
-    <div id="fc-warn" style="color:var(--red);font-size:12px;margin-top:10px;min-height:17px;"></div>
-    <button id="fc-submit" style="width:100%;margin-top:10px;background:var(--pitch);color:#0d1712;border:none;padding:10px;border-radius:4px;font-family:'Oswald',sans-serif;font-size:14px;font-weight:600;text-transform:uppercase;cursor:pointer;">${admin ? 'Log Card' : 'Play This Card'}</button>
+    <div id="fc-warn" style="color:var(--red);font-size:12px;margin-top:10px;min-height:17px;">${locked ? 'GW1 is locked. Cards for locked gameweeks can only be changed by the admin.' : ''}</div>
+    <button id="fc-submit" ${locked ? 'disabled' : ''} style="width:100%;margin-top:10px;background:${locked ? 'var(--panel)' : 'var(--pitch)'};color:${locked ? 'var(--muted)' : '#0d1712'};border:${locked ? '1px solid var(--line)' : 'none'};padding:10px;border-radius:4px;font-family:'Oswald',sans-serif;font-size:14px;font-weight:600;text-transform:uppercase;cursor:${locked ? 'not-allowed' : 'pointer'};">${admin ? 'Log Card' : 'Play This Card'}</button>
   </div>`;
 }
 
@@ -135,16 +141,40 @@ function refreshCardControls(profilePlayer: Player | null, admin: boolean) {
   const gwInput = document.getElementById('fc-gw') as HTMLInputElement | null;
   const cardSelect = document.getElementById('fc-card') as HTMLSelectElement | null;
   const playerInput = document.getElementById('fc-player') as HTMLSelectElement | HTMLInputElement | null;
+  const matchInput = document.getElementById('fc-match') as HTMLInputElement | null;
+  const targetSelect = document.getElementById('fc-target') as HTMLSelectElement | null;
+  const noteInput = document.getElementById('fc-note') as HTMLInputElement | null;
   if (!gwInput || !cardSelect || !playerInput) return;
   const gw = Math.max(1, Math.min(38, parseInt(gwInput.value, 10) || 1));
   const player = (admin ? playerInput.value : profilePlayer) as Player | null;
   if (!player) return;
+  const locked = !admin && store.isGameweekLocked(gw);
   const previous = cardSelect.value;
-  cardSelect.innerHTML = cardOptions(player, gw);
+  cardSelect.innerHTML = cardOptions(player, gw, locked);
+  cardSelect.disabled = locked;
   if (previous && [...cardSelect.options].some(o => o.value === previous && !o.disabled)) {
     cardSelect.value = previous;
   }
   syncDependentFields();
+
+  const submitBtn = document.getElementById('fc-submit') as HTMLButtonElement | null;
+  const warn = document.getElementById('fc-warn');
+  if (matchInput) matchInput.disabled = locked || matchInput.disabled;
+  if (targetSelect) targetSelect.disabled = locked || targetSelect.disabled;
+  if (noteInput) noteInput.disabled = locked;
+  if (submitBtn) {
+    submitBtn.disabled = locked;
+    submitBtn.style.background = locked ? 'var(--panel)' : 'var(--pitch)';
+    submitBtn.style.color = locked ? 'var(--muted)' : '#0d1712';
+    submitBtn.style.border = locked ? '1px solid var(--line)' : 'none';
+    submitBtn.style.cursor = locked ? 'not-allowed' : 'pointer';
+  }
+  if (warn) {
+    warn.style.color = 'var(--red)';
+    warn.textContent = locked
+      ? `GW${gw} is locked. Cards for locked gameweeks can only be changed by the admin.`
+      : '';
+  }
 }
 
 function refreshTargetOptions(player: Player) {
@@ -207,6 +237,11 @@ export function attachCardLogHandlers(reRender: () => void) {
     if (!user) { warn.textContent = 'Your login session has expired. Log in again.'; return; }
     if (!Number.isInteger(gw) || gw < 1 || gw > 38) { warn.textContent = 'Invalid GW.'; return; }
     if (!admin && player !== profilePlayer) { warn.textContent = 'You can only play your own cards.'; return; }
+    if (!admin && store.isGameweekLocked(gw)) {
+      warn.textContent = `GW${gw} is locked. Cards for locked gameweeks can only be changed by the admin.`;
+      refreshCardControls(profilePlayer, admin);
+      return;
+    }
 
     const { matchNo, target } = normalizeCardFields(card, rawMatchNo, rawTarget);
     syncDependentFields();
