@@ -1,6 +1,14 @@
 import { Match, Prediction, CardEntry } from '../types';
-
-const STORE_KEY = 'pl_predictions_league_v1';
+import { db } from '../firebase';
+import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  QuerySnapshot,
+  DocumentData
+} from 'firebase/firestore';
 
 export interface AppState {
   matches: Match[];
@@ -14,29 +22,41 @@ const defaultState: AppState = {
   cards: []
 };
 
+// Firestore collection references
+const matchesCol = collection(db, 'matches');
+const predictionsCol = collection(db, 'predictions');
+const cardsCol = collection(db, 'cards');
+
+// Unsubscribe functions stored for potential cleanup
+const _unsubscribers: (() => void)[] = [];
+
 export const store = {
-  state: { ...defaultState },
+  state: { ...defaultState } as AppState,
+  _onUpdate: null as (() => void) | null,
 
-  load() {
-    try {
-      const data = localStorage.getItem(STORE_KEY);
-      if (data) {
-        this.state = JSON.parse(data);
-      }
-    } catch (e) {
-      console.error('Failed to load state', e);
-    }
+  load(onUpdate?: () => void) {
+    if (onUpdate) this._onUpdate = onUpdate;
+
+    // Listen to matches collection
+    _unsubscribers.push(onSnapshot(matchesCol, (snap: QuerySnapshot<DocumentData>) => {
+      this.state.matches = snap.docs.map(d => ({ ...d.data(), id: d.id } as Match));
+      this._onUpdate?.();
+    }));
+
+    // Listen to predictions collection
+    _unsubscribers.push(onSnapshot(predictionsCol, (snap: QuerySnapshot<DocumentData>) => {
+      this.state.predictions = snap.docs.map(d => d.data() as Prediction);
+      this._onUpdate?.();
+    }));
+
+    // Listen to cards collection
+    _unsubscribers.push(onSnapshot(cardsCol, (snap: QuerySnapshot<DocumentData>) => {
+      this.state.cards = snap.docs.map(d => ({ ...d.data(), id: d.id } as CardEntry));
+      this._onUpdate?.();
+    }));
   },
 
-  save() {
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(this.state));
-    } catch (e) {
-      console.error('Failed to save state', e);
-    }
-  },
-
-  // Helpers
+  // Helpers (read from local state, which is kept in sync by onSnapshot)
   getMatchesByGW(gw: number): Match[] {
     return this.state.matches.filter(m => m.gw === gw).sort((a, b) => a.matchNo - b.matchNo);
   },
@@ -45,14 +65,14 @@ export const store = {
     return this.state.matches.find(m => m.id === id);
   },
 
-  addOrUpdateMatch(match: Match) {
+  async addOrUpdateMatch(match: Match) {
     const idx = this.state.matches.findIndex(m => m.id === match.id);
     if (idx >= 0) {
       this.state.matches[idx] = match;
     } else {
       this.state.matches.push(match);
     }
-    this.save();
+    await setDoc(doc(matchesCol, match.id), match);
   },
 
   getPredictionsForMatch(matchId: string): Prediction[] {
@@ -63,14 +83,16 @@ export const store = {
     return this.state.predictions.find(p => p.matchId === matchId && p.player === player);
   },
 
-  setPrediction(pred: Prediction) {
+  async setPrediction(pred: Prediction) {
     const idx = this.state.predictions.findIndex(p => p.matchId === pred.matchId && p.player === pred.player);
     if (idx >= 0) {
       this.state.predictions[idx] = pred;
     } else {
       this.state.predictions.push(pred);
     }
-    this.save();
+    // Use a composite key for prediction docs
+    const predId = `${pred.matchId}_${pred.player}`;
+    await setDoc(doc(predictionsCol, predId), pred);
   },
 
   getCardsForGW(gw: number): CardEntry[] {
@@ -81,18 +103,18 @@ export const store = {
     return this.state.cards.filter(c => c.player === player);
   },
 
-  addCard(card: CardEntry) {
+  async addCard(card: CardEntry) {
     this.state.cards.push(card);
-    this.save();
+    await setDoc(doc(cardsCol, card.id), card);
   },
 
-  removeCard(id: string) {
+  async removeCard(id: string) {
     this.state.cards = this.state.cards.filter(c => c.id !== id);
-    this.save();
+    await deleteDoc(doc(cardsCol, id));
   },
 
-  deleteMatch(id: string) {
+  async deleteMatch(id: string) {
     this.state.matches = this.state.matches.filter(m => m.id !== id);
-    this.save();
+    await deleteDoc(doc(matchesCol, id));
   }
 };

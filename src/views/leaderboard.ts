@@ -37,7 +37,7 @@ export function renderLeaderboard(): string {
 
     PLAYERS.forEach(p => {
       totals[p] += scores[p].finalPoints;
-      
+
       Object.values(scores[p].breakdown).forEach(matchScore => {
         if (matchScore.outcomePts > 0) stats[p].correctOutcomes++;
         if (matchScore.scorePts > 0) stats[p].exactScores++;
@@ -63,7 +63,7 @@ export function renderLeaderboard(): string {
             <th style="padding: 8px 4px;" title="Predictions where only you got it right">Uniques</th>
             <th style="padding: 8px 4px;">Cards Left</th>
             <th style="padding: 8px 4px;">Points</th>
-            <th style="padding: 8px 4px;">Proj. Total</th>
+            <th style="padding: 8px 4px;">Total (Points + Value Of Cards)</th>
           </tr>
         </thead>
         <tbody>

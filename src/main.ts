@@ -6,9 +6,6 @@ import { renderGameweek, attachGameweekHandlers } from './views/gameweek';
 import { renderCardLog, attachCardLogHandlers } from './views/cardlog';
 import { renderFixturesView, attachFixturesHandlers } from './views/fixturesView';
 
-// Initialize the store
-store.load();
-
 let currentTab = 'leaderboard';
 
 function renderApp() {
@@ -53,5 +50,5 @@ function renderApp() {
   }
 }
 
-// Initial render
-renderApp();
+// Initialize store with real-time Firestore listeners
+store.load(renderApp);
