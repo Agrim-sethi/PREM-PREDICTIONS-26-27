@@ -166,18 +166,42 @@ export const store = {
     ));
   },
 
-  async seedFixtures(fixtures: FixtureSeed[]): Promise<void> {
+  async seedFixtures(fixtures: FixtureSeed[]): Promise<number> {
     const missing = fixtures.filter(f => !this.state.matches.some(m => m.gw === f.gw && m.matchNo === f.matchNo));
-    if (!missing.length) return;
-    await Promise.all(missing.map(async fixture => {
-      const match: Match = { id: fixture.id, gw: fixture.gw, matchNo: fixture.matchNo, home: fixture.home, away: fixture.away, date: '', time: '' };
-      try {
-        await setDoc(doc(matchesCol, match.id), match);
-        this.state.matches.push(match);
-      } catch (error) {
-        throw firestoreError('Fixture seed failed', error);
-      }
-    }));
+    if (!missing.length) return 0;
+
+    const chunkSize = 40;
+    let written = 0;
+    for (let i = 0; i < missing.length; i += chunkSize) {
+      const chunk = missing.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(async fixture => {
+        const match: Match = {
+          id: fixture.id,
+          gw: fixture.gw,
+          matchNo: fixture.matchNo,
+          home: fixture.home,
+          away: fixture.away,
+          date: '',
+          time: ''
+        };
+        try {
+          await setDoc(doc(matchesCol, match.id), match);
+          if (!this.state.matches.some(m => m.id === match.id || (m.gw === match.gw && m.matchNo === match.matchNo))) {
+            this.state.matches.push(match);
+          }
+          written += 1;
+        } catch (error) {
+          throw firestoreError(`Fixture seed failed for ${match.id}`, error);
+        }
+      }));
+    }
+    this._onUpdate?.();
+    return written;
+  },
+
+  getAvailableGameweeks(): number[] {
+    const gws = new Set(this.state.matches.map(m => m.gw));
+    return [...gws].filter(gw => Number.isInteger(gw) && gw >= 1 && gw <= 38).sort((a, b) => a - b);
   },
 
   getMatchesByGW(gw: number): Match[] {

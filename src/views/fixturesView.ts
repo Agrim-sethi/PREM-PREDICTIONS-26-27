@@ -1,14 +1,31 @@
 import { store } from '../store/store';
-import { PREMIER_LEAGUE_TEAMS } from '../data/fixtures';
+import { PREMIER_LEAGUE_TEAMS, FIXTURES } from '../data/fixtures';
 import { Match } from '../types';
 
 let adminGw = 1;
 let editingMatchId: string | null = null;
+let seedStatus = '';
 
 function genId() { return 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
 
 export function renderFixturesView(): string {
+  const available = store.getAvailableGameweeks();
+  const missingCount = FIXTURES.filter(f => !store.state.matches.some(m => m.gw === f.gw && m.matchNo === f.matchNo)).length;
+
   let html = `
+    <div class="panel-box" style="background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:16px; margin-bottom:18px;">
+      <h2 style="font-family:'Oswald',sans-serif; color:var(--chalk); margin-bottom:8px; font-size:16px; text-transform:uppercase;">Season Fixture Import</h2>
+      <p style="color:var(--muted); font-size:13px; margin-bottom:12px; line-height:1.45;">
+        Gameweeks only appear in the Gameweek tab after matches exist in Firestore.
+        Currently loaded: <b style="color:var(--chalk);">${available.length ? available.map(g => `GW${g}`).join(', ') : 'none'}</b>
+        · Missing seed rows: <b style="color:${missingCount ? 'var(--gold)' : 'var(--pitch)'};">${missingCount}</b>
+      </p>
+      <button id="fx-seed-all" style="background:var(--pitch); color:#0d1712; padding:10px 16px; border:none; border-radius:4px; font-family:'Oswald',sans-serif; font-weight:700; cursor:pointer;">
+        Import full season fixtures
+      </button>
+      <span id="fx-seed-status" style="margin-left:12px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--muted);">${seedStatus}</span>
+    </div>
+
     <div class="panel-box" style="background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:16px;">
       <h2 style="font-family:'Oswald',sans-serif; color:var(--chalk); margin-bottom:16px; font-size:16px; text-transform:uppercase;">Setup Fixtures</h2>
       
@@ -19,7 +36,7 @@ export function renderFixturesView(): string {
   `;
 
   const matches = store.getMatchesByGW(adminGw);
-  
+
   if (matches.length > 0) {
     html += `<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px;">`;
     matches.forEach(m => {
@@ -42,8 +59,8 @@ export function renderFixturesView(): string {
   if (matches.length < 10 || editingMatchId) {
     const editingMatch = editingMatchId ? store.getMatch(editingMatchId) : null;
     const nextMatchNo = editingMatch ? editingMatch.matchNo : matches.length + 1;
-    
-    const buildTeamOptions = (selected?: string) => 
+
+    const buildTeamOptions = (selected?: string) =>
       PREMIER_LEAGUE_TEAMS.map(t => `<option value="${t}" ${t === selected ? 'selected' : ''}>${t}</option>`).join('');
 
     html += `
@@ -100,6 +117,30 @@ export function attachFixturesHandlers(reRender: () => void) {
     });
   }
 
+  const seedBtn = document.getElementById('fx-seed-all') as HTMLButtonElement | null;
+  const seedStatusEl = document.getElementById('fx-seed-status');
+  seedBtn?.addEventListener('click', async () => {
+    seedBtn.disabled = true;
+    seedStatus = 'Importing…';
+    if (seedStatusEl) seedStatusEl.textContent = seedStatus;
+    try {
+      const written = await store.seedFixtures(FIXTURES);
+      seedStatus = written === 0 ? 'All fixtures already present.' : `Imported ${written} match(es).`;
+      if (seedStatusEl) {
+        seedStatusEl.style.color = 'var(--pitch)';
+        seedStatusEl.textContent = seedStatus;
+      }
+      reRender();
+    } catch (error) {
+      seedStatus = error instanceof Error ? error.message : 'Import failed.';
+      if (seedStatusEl) {
+        seedStatusEl.style.color = 'var(--red)';
+        seedStatusEl.textContent = seedStatus;
+      }
+      seedBtn.disabled = false;
+    }
+  });
+
   const cancelBtn = document.getElementById('fx-cancel-edit');
   if (cancelBtn) {
     cancelBtn.addEventListener('click', () => {
@@ -123,7 +164,6 @@ export function attachFixturesHandlers(reRender: () => void) {
         const id = target.getAttribute('data-id');
         if (id) {
           store.deleteMatch(id);
-          // Re-sequence matches
           const matches = store.getMatchesByGW(adminGw);
           matches.forEach((m, idx) => {
             m.matchNo = idx + 1;
@@ -152,7 +192,7 @@ export function attachFixturesHandlers(reRender: () => void) {
       }
 
       const matches = store.getMatchesByGW(adminGw);
-      
+
       if (editingMatchId) {
         const existingMatch = store.getMatch(editingMatchId);
         if (existingMatch) {

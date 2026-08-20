@@ -77,7 +77,11 @@ watchAuth(profile => {
   if (profile) {
     store.load(renderApp, async () => {
       if (isAdmin()) {
-        await store.seedFixtures(FIXTURES);
+        try {
+          await store.seedFixtures(FIXTURES);
+        } catch (error) {
+          console.error(error);
+        }
         renderApp();
       }
     });

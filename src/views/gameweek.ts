@@ -5,21 +5,44 @@ import { getProfile, isAdmin } from '../auth';
 
 let activeGW = 1;
 
+function resolveActiveGW(available: number[]): number {
+  if (!available.length) return activeGW;
+  if (available.includes(activeGW)) return activeGW;
+  activeGW = available[0];
+  return activeGW;
+}
+
 export function renderGameweek(): string {
   const profile = getProfile();
   const admin = isAdmin();
   const player = profile?.player;
+  const available = store.getAvailableGameweeks();
+  const gw = resolveActiveGW(available);
+
+  const gwSelect = available.length
+    ? `<select id="gw-select" style="background:var(--ink); border:1px solid var(--line); color:var(--chalk); padding:6px 10px; border-radius:4px; font-family:'JetBrains Mono',monospace;">
+        ${available.map(g => `<option value="${g}" ${g === gw ? 'selected' : ''}>GW ${g}</option>`).join('')}
+      </select>`
+    : `<input type="number" id="gw-select" min="1" max="38" value="${gw}" style="background:var(--ink); border:1px solid var(--line); color:var(--chalk); padding:6px; width:60px; border-radius:4px; font-family:'JetBrains Mono',monospace;">`;
+
   let html = `
-    <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+    <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap:wrap;">
       <label style="font-family:'Oswald',sans-serif; color:var(--chalk);">Select GW:</label>
-      <input type="number" id="gw-select" min="1" max="38" value="${activeGW}" style="background:var(--ink); border:1px solid var(--line); color:var(--chalk); padding:6px; width:60px; border-radius:4px; font-family:'JetBrains Mono',monospace;">
+      ${gwSelect}
       ${!admin ? `<span style="font-size:11px;color:var(--pitch);font-family:'JetBrains Mono',monospace;">EDITING AS ${player?.toUpperCase()} · ALL PICKS VISIBLE</span>` : ''}
+      ${available.length ? `<span style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${available.length} GAMEWEEK${available.length === 1 ? '' : 'S'} WITH FIXTURES</span>` : ''}
     </div>
   `;
 
-  const matches = store.getMatchesByGW(activeGW);
+  const matches = store.getMatchesByGW(gw);
   if (matches.length === 0) {
-    return html + `<div class="panel-box" style="padding:20px; color:var(--muted); text-align:center;">No fixtures set up for GW${activeGW}. ${admin ? 'Go to Fixtures Setup to add them.' : 'The administrator has not set them up yet.'}</div>`;
+    const hint = available.length
+      ? `Fixtures currently exist for: ${available.map(g => `GW${g}`).join(', ')}.`
+      : 'No fixtures have been imported yet.';
+    return html + `<div class="panel-box" style="padding:20px; color:var(--muted); text-align:center;">
+      No fixtures set up for GW${gw}. ${admin ? 'Open Fixtures Setup and click “Import full season fixtures”, or add matches manually.' : 'Ask the administrator to import the season fixtures.'}
+      <div style="margin-top:10px;font-size:12px;font-family:'JetBrains Mono',monospace;">${hint}</div>
+    </div>`;
   }
 
   html += `<div style="display:flex; flex-direction:column; gap:16px;">`;
@@ -63,14 +86,14 @@ export function renderGameweek(): string {
   });
   html += `</div>`;
 
-  html += `<div style="margin-top:20px;"><button id="save-all-preds" style="background:var(--pitch); color:#0d1712; padding:10px 20px; border:none; border-radius:4px; font-family:'Oswald',sans-serif; font-size:14px; font-weight:bold; cursor:pointer;">SAVE ${admin ? 'ALL' : 'MY'} PREDICTIONS FOR GW${activeGW}</button></div>`;
+  html += `<div style="margin-top:20px;"><button id="save-all-preds" style="background:var(--pitch); color:#0d1712; padding:10px 20px; border:none; border-radius:4px; font-family:'Oswald',sans-serif; font-size:14px; font-weight:bold; cursor:pointer;">SAVE ${admin ? 'ALL' : 'MY'} PREDICTIONS FOR GW${gw}</button><span id="pred-save-status" style="margin-left:12px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--muted);"></span></div>`;
 
-  const gwCards = store.getCardsForGW(activeGW);
-  const scores = calculateGameweekScores(activeGW, matches, store.state.predictions, gwCards);
+  const gwCards = store.getCardsForGW(gw);
+  const scores = calculateGameweekScores(gw, matches, store.state.predictions, gwCards);
   applyNemesisSteals(scores, gwCards);
   html += `
     <div class="panel-box" style="background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:16px; margin-top:24px;">
-      <h3 style="font-family:'Oswald',sans-serif; margin-bottom:12px;">GW${activeGW} Points Breakdown</h3>
+      <h3 style="font-family:'Oswald',sans-serif; margin-bottom:12px;">GW${gw} Points Breakdown</h3>
       <table style="width:100%; border-collapse: collapse; text-align: left; font-size:13px;">
         <thead><tr style="border-bottom:1px solid var(--line);color:var(--muted);font-family:'JetBrains Mono',monospace;"><th style="padding:8px 4px;">Player</th><th style="padding:8px 4px;">Raw Pts</th><th style="padding:8px 4px;">Cards Applied</th><th style="padding:8px 4px;">Final GW Pts</th></tr></thead>
         <tbody>${PLAYERS.map(p => {
@@ -88,8 +111,18 @@ export function renderGameweek(): string {
 export function attachGameweekHandlers(reRender: () => void) {
   const admin = isAdmin();
   const profile = getProfile();
-  const gwInput = document.getElementById('gw-select') as HTMLInputElement;
-  if (gwInput) gwInput.addEventListener('change', e => { activeGW = parseInt((e.target as HTMLInputElement).value, 10); reRender(); });
+  const gwInput = document.getElementById('gw-select') as HTMLInputElement | HTMLSelectElement | null;
+  if (gwInput) {
+    const applyGw = () => {
+      const next = parseInt(gwInput.value, 10);
+      if (!Number.isInteger(next) || next < 1 || next > 38) return;
+      if (next === activeGW) return;
+      activeGW = next;
+      reRender();
+    };
+    gwInput.addEventListener('change', applyGw);
+    gwInput.addEventListener('input', applyGw);
+  }
 
   if (admin) {
     document.querySelectorAll('.save-res-btn').forEach(btn => btn.addEventListener('click', async e => {
@@ -106,6 +139,8 @@ export function attachGameweekHandlers(reRender: () => void) {
   }
 
   document.getElementById('save-all-preds')?.addEventListener('click', async () => {
+    const status = document.getElementById('pred-save-status');
+    const button = document.getElementById('save-all-preds') as HTMLButtonElement | null;
     const inputs = document.querySelectorAll('.pred-input');
     const predsMap: Record<string, Prediction> = {};
     inputs.forEach(input => {
@@ -122,7 +157,25 @@ export function attachGameweekHandlers(reRender: () => void) {
         if (team === 'away') predsMap[key].away = parseInt(i.value, 10);
       }
     });
-    await Promise.all(Object.values(predsMap).map(pred => store.setPrediction(pred)));
-    reRender();
+
+    if (button) button.disabled = true;
+    if (status) {
+      status.style.color = 'var(--muted)';
+      status.textContent = 'Saving…';
+    }
+    try {
+      await Promise.all(Object.values(predsMap).map(pred => store.setPrediction(pred)));
+      if (status) {
+        status.style.color = 'var(--pitch)';
+        status.textContent = `Saved ${Object.keys(predsMap).length} prediction(s).`;
+      }
+      reRender();
+    } catch (error) {
+      if (status) {
+        status.style.color = 'var(--red)';
+        status.textContent = error instanceof Error ? error.message : 'Save failed.';
+      }
+      if (button) button.disabled = false;
+    }
   });
 }
