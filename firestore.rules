@@ -2,10 +2,41 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to all collections
-    // This is suitable for a small private predictions league
-    match /{document=**} {
-      allow read, write: if true;
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.email == 'agrim@prem-predict-2627-agrim.firebaseapp.com';
+    }
+
+    function isPlayer(player) {
+      return signedIn() && (
+        (request.auth.token.email == 'samarth@prem-predict-2627-agrim.firebaseapp.com' && player == 'Samarth') ||
+        (request.auth.token.email == 'dhairya@prem-predict-2627-agrim.firebaseapp.com' && player == 'Dhairya') ||
+        (request.auth.token.email == 'luvi@prem-predict-2627-agrim.firebaseapp.com' && player == 'Luvi') ||
+        (request.auth.token.email == 'claude@prem-predict-2627-agrim.firebaseapp.com' && player == 'Claude')
+      );
+    }
+
+    match /matches/{matchId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /cards/{cardId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /predictions/{predictionId} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || isPlayer(request.resource.data.player);
+      allow update: if isAdmin() || (
+        isPlayer(request.resource.data.player) &&
+        resource.data.player == request.resource.data.player
+      );
+      allow delete: if isAdmin();
     }
   }
 }
