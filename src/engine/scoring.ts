@@ -104,37 +104,31 @@ export function calculateGameweekScores(
       uniqueScores[correctOutcomePlayers[0]] = 1;
     }
 
-    // Assign points to breakdown, applying Captain multiplier (Step 4)
+    // Assign points to breakdown. Raw pts exclude all card multipliers (including Captain).
+    // Captain is applied only into finalPoints / breakdown.total.
     PLAYERS.forEach(p => {
       const matchNo = match.matchNo;
-      // Is this player captaining this match?
       const isCap = gwCards.some(c => c.player === p && c.card === 'captain' && c.matchNo === matchNo);
-      
+
       const outcomePts = baseScores[p].outcome;
       const scorePts = baseScores[p].score;
       const uniquePts = uniqueScores[p];
-      
-      let total = outcomePts + scorePts + uniquePts;
-      if (isCap) {
-        total *= 2; // Captain doubles full match points
-      }
+
+      const baseTotal = outcomePts + scorePts + uniquePts;
+      const withCaptain = isCap ? baseTotal * 2 : baseTotal;
 
       scores[p].breakdown[match.id] = {
         matchId: match.id,
         outcomePts,
         scorePts,
         uniquePts,
-        total
+        total: withCaptain
       };
-      
-      scores[p].rawPoints += total;
+
+      scores[p].rawPoints += baseTotal;
+      scores[p].finalPoints += withCaptain;
     });
   }
-
-  // Set final points initially to raw points
-  PLAYERS.forEach(p => {
-    scores[p].finalPoints = scores[p].rawPoints;
-  });
 
   // 5. Wild Card
   PLAYERS.forEach(p => {
