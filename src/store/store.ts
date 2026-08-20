@@ -1,4 +1,4 @@
-import { Match, Prediction, CardEntry, PLAYERS, Player } from '../types';
+import { Match, Prediction, CardEntry } from '../types';
 
 const STORE_KEY = 'pl_predictions_league_v1';
 

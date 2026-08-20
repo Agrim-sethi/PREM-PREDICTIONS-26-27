@@ -1,4 +1,4 @@
-import { Match, Prediction, CardEntry, PLAYERS, PlayerGWScore, MatchScore, CardType } from '../types';
+import { Match, Prediction, CardEntry, PLAYERS, PlayerGWScore } from '../types';
 
 export function calculateGameweekScores(
   gw: number,
@@ -79,19 +79,14 @@ export function calculateGameweekScores(
       const pAway = pred.away as number;
       const pDiff = pHome - pAway;
 
-      let gotOutcome = false;
-      let gotScore = false;
-
       // Outcome match
       if ((actualDiff > 0 && pDiff > 0) || (actualDiff < 0 && pDiff < 0) || (actualDiff === 0 && pDiff === 0)) {
-        gotOutcome = true;
         baseScores[pred.player].outcome = 1;
         correctOutcomePlayers.push(pred.player);
       }
 
       // Scoreline match
       if (actualHome === pHome && actualAway === pAway) {
-        gotScore = true;
         baseScores[pred.player].score = 2;
         correctScorePlayers.push(pred.player);
       }
@@ -172,7 +167,7 @@ export function calculateGameweekScores(
 export function applyNemesisSteals(gwScores: Record<string, PlayerGWScore>, cards: CardEntry[]) {
   // 8. Nemesis Card (post-GW)
   // Must clone to avoid mutating while evaluating
-  const originalFinals = {};
+  const originalFinals: Record<string, number> = {};
   PLAYERS.forEach(p => {
     originalFinals[p] = gwScores[p].finalPoints;
   });

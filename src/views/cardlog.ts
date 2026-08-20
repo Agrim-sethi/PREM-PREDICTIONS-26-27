@@ -1,5 +1,5 @@
 import { store } from '../store/store';
-import { PLAYERS, CARDS } from '../types';
+import { PLAYERS, CARDS, CardType } from '../types';
 
 function genId() { return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
 
@@ -107,7 +107,7 @@ export function attachCardLogHandlers(reRender: () => void) {
     submitBtn.addEventListener('click', () => {
       const gw = parseInt((document.getElementById('fc-gw') as HTMLInputElement).value, 10);
       const player = (document.getElementById('fc-player') as HTMLSelectElement).value;
-      const card = (document.getElementById('fc-card') as HTMLSelectElement).value as any;
+      const card = (document.getElementById('fc-card') as HTMLSelectElement).value as CardType;
       const matchNo = parseInt((document.getElementById('fc-match') as HTMLInputElement).value, 10) || undefined;
       const target = (document.getElementById('fc-target') as HTMLSelectElement).value || undefined;
       const note = (document.getElementById('fc-note') as HTMLInputElement).value;

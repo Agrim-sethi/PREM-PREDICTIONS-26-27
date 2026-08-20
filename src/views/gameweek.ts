@@ -1,5 +1,5 @@
 import { store } from '../store/store';
-import { PLAYERS, Match, Prediction } from '../types';
+import { PLAYERS, Prediction } from '../types';
 import { calculateGameweekScores, applyNemesisSteals } from '../engine/scoring';
 
 let activeGW = 1;
