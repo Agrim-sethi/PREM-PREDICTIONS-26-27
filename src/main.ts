@@ -6,7 +6,8 @@ import { renderGameweek, attachGameweekHandlers } from './views/gameweek';
 import { renderCardLog, attachCardLogHandlers } from './views/cardlog';
 import { renderFixturesView, attachFixturesHandlers } from './views/fixturesView';
 import { attachLoginHandlers, renderLogin } from './views/login';
-import { getProfile, logout, watchAuth, AppProfile } from './auth';
+import { getProfile, logout, watchAuth, AppProfile, isAdmin } from './auth';
+import { FIXTURES } from './data/fixtures';
 
 let currentTab = 'leaderboard';
 let authReady = false;
@@ -73,6 +74,13 @@ function renderApp() {
 
 watchAuth(profile => {
   authReady = true;
-  if (profile) store.load(renderApp);
+  if (profile) {
+    store.load(renderApp, async (matches) => {
+      if (isAdmin() && matches.length === 0) {
+        await store.seedFixtures(FIXTURES);
+        renderApp();
+      }
+    });
+  }
   renderApp();
 });
