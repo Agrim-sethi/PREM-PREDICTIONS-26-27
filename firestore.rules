@@ -19,17 +19,27 @@ service cloud.firestore {
       );
     }
 
+    function predictionGW() {
+      return get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.gw;
+    }
+
+    function predictionOpen() {
+      return !exists(/databases/$(database)/documents/gameweeks/gw$(predictionGW())) ||
+        get(/databases/$(database)/documents/gameweeks/gw$(predictionGW())).data.locked != true;
+    }
+
     match /matches/{matchId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /gameweeks/{gwId} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();
     }
 
     match /cards/{cardId} {
       allow read: if signedIn();
-
-      // Card plays are immutable slot documents. A normal player can create
-      // only their own card play (player name bound to auth email), with
-      // createdByUid matching their UID. The slot must not already exist.
       allow create: if isAdmin() || (
         isPlayer(request.resource.data.player) &&
         request.resource.data.createdByUid == request.auth.uid &&
@@ -37,17 +47,16 @@ service cloud.firestore {
         request.resource.data.slotId == cardId &&
         !exists(/databases/$(database)/documents/cards/$(cardId))
       );
-
-      // Players never edit an existing card play. Admin alone can correct or delete.
       allow update, delete: if isAdmin();
     }
 
     match /predictions/{predictionId} {
       allow read: if signedIn();
-      allow create: if isAdmin() || isPlayer(request.resource.data.player);
+      allow create: if isAdmin() || (isPlayer(request.resource.data.player) && predictionOpen());
       allow update: if isAdmin() || (
         isPlayer(request.resource.data.player) &&
-        resource.data.player == request.resource.data.player
+        resource.data.player == request.resource.data.player &&
+        predictionOpen()
       );
       allow delete: if isAdmin();
     }
