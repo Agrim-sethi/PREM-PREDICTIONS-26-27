@@ -19,10 +19,13 @@ service cloud.firestore {
       );
     }
 
+    // Resolve the gameweek for a prediction from its referenced fixture.
     function predictionGW() {
       return get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.gw;
     }
 
+    // Lock documents live in the existing matches collection as __gwlock_<GW>.
+    // Missing lock document means the GW is OPEN. A true value means LOCKED.
     function predictionOpen() {
       return !exists(/databases/$(database)/documents/matches/__gwlock_$(predictionGW())) ||
         get(/databases/$(database)/documents/matches/__gwlock_$(predictionGW())).data.locked != true;
@@ -47,12 +50,21 @@ service cloud.firestore {
 
     match /predictions/{predictionId} {
       allow read: if signedIn();
-      allow create: if isAdmin() || (isPlayer(request.resource.data.player) && predictionOpen());
+
+      // Admin can always create a prediction, even while the GW is locked.
+      allow create: if isAdmin() || (
+        isPlayer(request.resource.data.player) &&
+        predictionOpen()
+      );
+
+      // Players can only modify their own prediction while the GW is open.
+      // Admin can always modify predictions.
       allow update: if isAdmin() || (
         isPlayer(request.resource.data.player) &&
         resource.data.player == request.resource.data.player &&
         predictionOpen()
       );
+
       allow delete: if isAdmin();
     }
   }
