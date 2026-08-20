@@ -2,18 +2,29 @@ import { store } from '../store/store';
 import { PLAYERS, CARDS, CardType, Player, CardEntry } from '../types';
 import { getProfile, getUser, isAdmin } from '../auth';
 
-function validateCardFields(card: CardType, matchNo: number | null, target: Player | null): string | null {
+function normalizeCardFields(card: CardType, matchNo: number | null, target: Player | null): {
+  matchNo: number | null;
+  target: Player | null;
+} {
   const def = CARDS[card];
-  if (def.needsMatch && matchNo === null) return `${def.label} requires a match number.`;
-  if (!def.needsMatch && matchNo !== null) return `${def.label} does not use a match number.`;
-  if (def.needsTarget && !target) return `${def.label} requires a target player.`;
-  if (!def.needsTarget && target !== null) return `${def.label} does not use a target player.`;
-  return null;
+  return {
+    matchNo: def.needsMatch ? matchNo : null,
+    target: def.needsTarget ? target : null
+  };
 }
 
-function remainingLabel(player: Player, card: CardType, gw: number): string {
-  const remaining = store.getCardRemaining(player, card, gw);
-  return CARDS[card].perGameweek ? (remaining ? '1 THIS GW' : 'USED THIS GW') : `${remaining} LEFT`;
+function validateCardFields(card: CardType, matchNo: number | null, target: Player | null): string | null {
+  const def = CARDS[card];
+  if (def.needsMatch) {
+    if (!Number.isInteger(matchNo) || (matchNo as number) < 1 || (matchNo as number) > 10) {
+      return `${def.label} requires a match number from 1-10.`;
+    }
+  }
+  if (def.needsTarget) {
+    if (!target) return `${def.label} requires a target player.`;
+    return null;
+  }
+  return null;
 }
 
 function cardOptions(player: Player, gw: number): string {
@@ -23,6 +34,23 @@ function cardOptions(player: Player, gw: number): string {
     const disabled = remaining <= 0;
     return `<option value="${card}" ${disabled ? 'disabled' : ''}>${def.label} · ${def.perGameweek ? (disabled ? 'USED THIS GW' : '1 THIS GW') : `${remaining} LEFT`}</option>`;
   }).join('');
+}
+
+function syncDependentFields() {
+  const cardSelect = document.getElementById('fc-card') as HTMLSelectElement | null;
+  const matchInput = document.getElementById('fc-match') as HTMLInputElement | null;
+  const targetSelect = document.getElementById('fc-target') as HTMLSelectElement | null;
+  if (!cardSelect || !matchInput || !targetSelect) return;
+
+  const card = cardSelect.value as CardType;
+  const def = CARDS[card];
+  if (!def) return;
+
+  matchInput.disabled = !def.needsMatch;
+  if (!def.needsMatch) matchInput.value = '';
+
+  targetSelect.disabled = !def.needsTarget;
+  if (!def.needsTarget) targetSelect.value = '';
 }
 
 function playForm(player: Player | null, admin: boolean): string {
@@ -49,11 +77,15 @@ function arsenal(player: Player): string {
     <div style="display:flex;flex-direction:column;gap:8px;">
       ${Object.entries(CARDS).map(([key, def]) => {
         const card = key as CardType;
-        const label = def.perGameweek ? '1 EACH GW' : `${def.allowance} SEASON`;
-        return `<div style="border:1px solid ${def.color}55;background:var(--ink);border-radius:5px;padding:10px 12px;">
+        const remaining = store.getCardRemaining(player, card, 1);
+        const label = def.perGameweek
+          ? '1 EACH GW'
+          : `${remaining} / ${def.allowance} LEFT`;
+        const depleted = !def.perGameweek && remaining <= 0;
+        return `<div style="border:1px solid ${def.color}55;background:var(--ink);border-radius:5px;padding:10px 12px;opacity:${depleted ? '0.55' : '1'};">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
             <div><span style="display:inline-block;background:${def.color};color:#0d1712;padding:2px 7px;border-radius:3px;font:700 10px 'Oswald',sans-serif;margin-right:7px;">${def.short}</span><b style="font-size:13px;">${def.label}</b></div>
-            <span style="font:700 11px 'JetBrains Mono',monospace;color:var(--pitch);">${label}</span>
+            <span style="font:700 11px 'JetBrains Mono',monospace;color:${depleted ? 'var(--muted)' : 'var(--pitch)'};">${label}</span>
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4;">${def.desc}</div>
         </div>`;
@@ -63,13 +95,18 @@ function arsenal(player: Player): string {
 }
 
 function history(admin: boolean): string {
+  const loadError = store.loadError;
   const cards = [...store.state.cards].sort((a, b) => b.ts - a.ts);
   return `<div class="panel-box" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;">
     <h2 style="font-family:'Oswald',sans-serif;color:var(--muted);margin-bottom:12px;font-size:14px;text-transform:uppercase;">Cards in Play</h2>
     <div style="color:var(--muted);font-size:11px;margin-bottom:12px;font-family:'JetBrains Mono',monospace;">ALL CARD PLAYS · ${admin ? 'ADMIN CONTROL' : 'READ-ONLY HISTORY'}</div>
+    ${loadError ? `<div style="color:var(--red);font-size:12px;margin-bottom:12px;">${loadError}</div>` : ''}
     <div style="display:flex;flex-direction:column;gap:10px;">
       ${cards.length ? cards.map(c => {
         const def = CARDS[c.card];
+        if (!def) {
+          return `<div style="padding:9px 0;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;">Unknown card play · ${c.player} · GW${c.gw}</div>`;
+        }
         const meta: string[] = [`GW${c.gw}`];
         if (c.matchNo !== null) meta.push(`Match ${c.matchNo}`);
         if (c.target) meta.push(`vs ${c.target}`);
@@ -102,7 +139,22 @@ function refreshCardControls(profilePlayer: Player | null, admin: boolean) {
   const gw = Math.max(1, Math.min(38, parseInt(gwInput.value, 10) || 1));
   const player = (admin ? playerInput.value : profilePlayer) as Player | null;
   if (!player) return;
+  const previous = cardSelect.value;
   cardSelect.innerHTML = cardOptions(player, gw);
+  if (previous && [...cardSelect.options].some(o => o.value === previous && !o.disabled)) {
+    cardSelect.value = previous;
+  }
+  syncDependentFields();
+}
+
+function refreshTargetOptions(player: Player) {
+  const targetSelect = document.getElementById('fc-target') as HTMLSelectElement | null;
+  if (!targetSelect) return;
+  const previous = targetSelect.value;
+  targetSelect.innerHTML = `<option value="">—</option>${PLAYERS.filter(p => p !== player).map(p => `<option value="${p}">${p}</option>`).join('')}`;
+  if (previous && previous !== player && PLAYERS.includes(previous as Player)) {
+    targetSelect.value = previous;
+  }
 }
 
 export function attachCardLogHandlers(reRender: () => void) {
@@ -122,13 +174,22 @@ export function attachCardLogHandlers(reRender: () => void) {
 
   const gwInput = document.getElementById('fc-gw') as HTMLInputElement | null;
   const playerInput = document.getElementById('fc-player') as HTMLSelectElement | HTMLInputElement | null;
+  const cardSelect = document.getElementById('fc-card') as HTMLSelectElement | null;
+
   gwInput?.addEventListener('change', () => refreshCardControls(profilePlayer, admin));
-  playerInput?.addEventListener('change', () => refreshCardControls(profilePlayer, admin));
+  playerInput?.addEventListener('change', () => {
+    const selected = (admin ? playerInput.value : profilePlayer) as Player | null;
+    if (selected) refreshTargetOptions(selected);
+    refreshCardControls(profilePlayer, admin);
+  });
+  cardSelect?.addEventListener('change', () => syncDependentFields());
   refreshCardControls(profilePlayer, admin);
 
   document.getElementById('fc-submit')?.addEventListener('click', async () => {
     const warn = document.getElementById('fc-warn');
+    const submitBtn = document.getElementById('fc-submit') as HTMLButtonElement | null;
     if (!warn) return;
+    warn.style.color = 'var(--red)';
     warn.textContent = '';
 
     const gw = parseInt((document.getElementById('fc-gw') as HTMLInputElement).value, 10);
@@ -136,23 +197,29 @@ export function attachCardLogHandlers(reRender: () => void) {
     const player = admin ? selectedPlayer : profilePlayer;
     const card = (document.getElementById('fc-card') as HTMLSelectElement).value as CardType;
     const matchRaw = (document.getElementById('fc-match') as HTMLInputElement).value;
-    const matchNo = matchRaw === '' ? null : parseInt(matchRaw, 10);
+    const rawMatchNo = matchRaw === '' ? null : parseInt(matchRaw, 10);
     const targetRaw = (document.getElementById('fc-target') as HTMLSelectElement).value;
-    const target = targetRaw === '' ? null : targetRaw as Player;
+    const rawTarget = targetRaw === '' ? null : targetRaw as Player;
     const noteValue = (document.getElementById('fc-note') as HTMLInputElement).value.trim();
     const note = noteValue === '' ? null : noteValue;
 
     if (!player) { warn.textContent = 'No player identity found.'; return; }
     if (!user) { warn.textContent = 'Your login session has expired. Log in again.'; return; }
     if (!Number.isInteger(gw) || gw < 1 || gw > 38) { warn.textContent = 'Invalid GW.'; return; }
+    if (!admin && player !== profilePlayer) { warn.textContent = 'You can only play your own cards.'; return; }
+
+    const { matchNo, target } = normalizeCardFields(card, rawMatchNo, rawTarget);
+    syncDependentFields();
 
     const shapeError = validateCardFields(card, matchNo, target);
     if (shapeError) { warn.textContent = shapeError; return; }
-    if (!admin && player !== profilePlayer) { warn.textContent = 'You can only play your own cards.'; return; }
+    if (target && target === player) { warn.textContent = 'A player cannot target themselves.'; return; }
 
     const slotId = store.getAvailableCardSlot(player, card, gw);
     if (!slotId) {
-      warn.textContent = card === 'captain' ? `${player} has already played a Captain in GW${gw}. Only 1 Captain is allowed per player per gameweek.` : `${player} has no ${CARDS[card].label}s remaining.`;
+      warn.textContent = card === 'captain'
+        ? `${player} has already played a Captain in GW${gw}. Only 1 Captain is allowed per player per gameweek.`
+        : `${player} has no ${CARDS[card].label}s remaining.`;
       refreshCardControls(profilePlayer, admin);
       return;
     }
@@ -170,11 +237,22 @@ export function attachCardLogHandlers(reRender: () => void) {
       ts: Date.now()
     };
 
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving…';
+    }
     try {
       await store.addCard(entry);
+      warn.style.color = 'var(--pitch)';
+      warn.textContent = 'Card saved.';
       reRender();
     } catch (error) {
+      warn.style.color = 'var(--red)';
       warn.textContent = error instanceof Error ? error.message : 'Card could not be saved.';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = admin ? 'Log Card' : 'Play This Card';
+      }
     }
   });
 }
