@@ -13,7 +13,7 @@ export function renderGameweek(): string {
     <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
       <label style="font-family:'Oswald',sans-serif; color:var(--chalk);">Select GW:</label>
       <input type="number" id="gw-select" min="1" max="38" value="${activeGW}" style="background:var(--ink); border:1px solid var(--line); color:var(--chalk); padding:6px; width:60px; border-radius:4px; font-family:'JetBrains Mono',monospace;">
-      ${!admin ? `<span style="font-size:11px;color:var(--pitch);font-family:'JetBrains Mono',monospace;">ENTERING AS ${player?.toUpperCase()}</span>` : ''}
+      ${!admin ? `<span style="font-size:11px;color:var(--pitch);font-family:'JetBrains Mono',monospace;">EDITING AS ${player?.toUpperCase()} · ALL PICKS VISIBLE</span>` : ''}
     </div>
   `;
 
@@ -40,15 +40,19 @@ export function renderGameweek(): string {
         </div>
 
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
-          ${(admin ? PLAYERS : [player!]).map(p => {
+          ${PLAYERS.map(p => {
             const pred = store.getPrediction(m.id, p);
+            const editable = admin || p === player;
             return `
-              <div style="background:var(--ink); padding:8px; border-radius:4px; border:1px solid var(--line);">
-                <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:bold;">${p}${p === player && !admin ? ' · YOU' : ''}</div>
+              <div style="background:var(--ink); padding:10px; border-radius:4px; border:1px solid ${p === player ? 'var(--pitch)' : 'var(--line)'};">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:${p === player ? 'var(--pitch)' : 'var(--muted)'};margin-bottom:6px;font-weight:bold;">
+                  <span>${p}${p === player && !admin ? ' · YOU' : ''}</span>
+                  ${editable ? '<span style="font-size:9px;color:var(--pitch);font-family:JetBrains Mono,monospace;">EDIT</span>' : '<span style="font-size:9px;color:var(--muted);font-family:JetBrains Mono,monospace;">VIEW</span>'}
+                </div>
                 <div style="display:flex; gap:4px; align-items:center;">
-                  <input type="number" class="pred-input" data-match="${m.id}" data-player="${p}" data-team="home" value="${pred && pred.home !== null ? pred.home : ''}" placeholder="H" style="width:40px; background:var(--panel); border:1px solid var(--line); color:var(--chalk); padding:4px; text-align:center;">
+                  <input type="number" class="pred-input" data-match="${m.id}" data-player="${p}" data-team="home" value="${pred && pred.home !== null ? pred.home : ''}" placeholder="H" ${editable ? '' : 'readonly'} style="width:48px; background:var(--panel); border:1px solid var(--line); color:var(--chalk); padding:5px; text-align:center; ${editable ? '' : 'opacity:.65;cursor:not-allowed;'}">
                   <span>-</span>
-                  <input type="number" class="pred-input" data-match="${m.id}" data-player="${p}" data-team="away" value="${pred && pred.away !== null ? pred.away : ''}" placeholder="A" style="width:40px; background:var(--panel); border:1px solid var(--line); color:var(--chalk); padding:4px; text-align:center;">
+                  <input type="number" class="pred-input" data-match="${m.id}" data-player="${p}" data-team="away" value="${pred && pred.away !== null ? pred.away : ''}" placeholder="A" ${editable ? '' : 'readonly'} style="width:48px; background:var(--panel); border:1px solid var(--line); color:var(--chalk); padding:5px; text-align:center; ${editable ? '' : 'opacity:.65;cursor:not-allowed;'}">
                 </div>
               </div>
             `;
@@ -107,17 +111,18 @@ export function attachGameweekHandlers(reRender: () => void) {
     inputs.forEach(input => {
       const i = input as HTMLInputElement;
       const matchId = i.dataset.match!;
-      const player = i.dataset.player!;
+      const p = i.dataset.player!;
       const team = i.dataset.team!;
-      const key = matchId + '_' + player;
-      if (!predsMap[key]) predsMap[key] = { matchId, player, home: null, away: null };
+      const editable = admin || p === profile?.player;
+      if (!editable) return;
+      const key = matchId + '_' + p;
+      if (!predsMap[key]) predsMap[key] = { matchId, player: p, home: null, away: null };
       if (i.value !== '') {
         if (team === 'home') predsMap[key].home = parseInt(i.value, 10);
         if (team === 'away') predsMap[key].away = parseInt(i.value, 10);
       }
     });
-    const allowedPlayer = admin ? null : profile?.player;
-    await Promise.all(Object.values(predsMap).filter(p => !allowedPlayer || p.player === allowedPlayer).map(p => store.setPrediction(p)));
+    await Promise.all(Object.values(predsMap).map(pred => store.setPrediction(pred)));
     reRender();
   });
 }
