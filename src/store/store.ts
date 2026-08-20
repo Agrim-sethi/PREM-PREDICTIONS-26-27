@@ -23,6 +23,14 @@ const predictionsCol = collection(db, 'predictions');
 const cardsCol = collection(db, 'cards');
 const _unsubscribers: (() => void)[] = [];
 
+function firestoreError(context: string, error: unknown): Error {
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : '';
+  if (code === 'permission-denied') {
+    return new Error(`${context}: Firestore permission denied. Make sure the latest firestore.rules are deployed to the predictions-db database.`);
+  }
+  return new Error(`${context}: ${error instanceof Error ? error.message : String(error)}`);
+}
+
 function cardValidationError(card: CardEntry, existingCards: CardEntry[]): string | null {
   if (!PLAYERS.includes(card.player as typeof PLAYERS[number])) return 'Unknown player.';
   if (card.gw < 1 || card.gw > 38) return 'Gameweek must be between 1 and 38.';
@@ -46,7 +54,6 @@ function cardValidationError(card: CardEntry, existingCards: CardEntry[]): strin
     return `${card.player} has exhausted their ${def.label} allowance (${def.allowance}).`;
   }
 
-  // A player may not use the same card instance twice on the same exact target/match combination.
   if (card.card === 'mirror' && samePlayerCards.some(c => c.gw === card.gw && c.matchNo === card.matchNo && c.target === card.target)) {
     return `${card.player} has already played a Mirror on that match/target in GW${card.gw}.`;
   }
@@ -85,10 +92,14 @@ export const store = {
   async seedFixtures(fixtures: FixtureSeed[]): Promise<void> {
     const missing = fixtures.filter(f => !this.state.matches.some(m => m.gw === f.gw && m.matchNo === f.matchNo));
     if (!missing.length) return;
-    await Promise.all(missing.map(fixture => {
+    await Promise.all(missing.map(async fixture => {
       const match: Match = { id: fixture.id, gw: fixture.gw, matchNo: fixture.matchNo, home: fixture.home, away: fixture.away, date: '', time: '' };
-      this.state.matches.push(match);
-      return setDoc(doc(matchesCol, match.id), match);
+      try {
+        await setDoc(doc(matchesCol, match.id), match);
+        this.state.matches.push(match);
+      } catch (error) {
+        throw firestoreError('Fixture seed failed', error);
+      }
     }));
   },
 
@@ -96,18 +107,26 @@ export const store = {
   getMatch(id: string): Match | undefined { return this.state.matches.find(m => m.id === id); },
 
   async addOrUpdateMatch(match: Match) {
-    const idx = this.state.matches.findIndex(m => m.id === match.id);
-    if (idx >= 0) this.state.matches[idx] = match; else this.state.matches.push(match);
-    await setDoc(doc(matchesCol, match.id), match);
+    try {
+      await setDoc(doc(matchesCol, match.id), match);
+      const idx = this.state.matches.findIndex(m => m.id === match.id);
+      if (idx >= 0) this.state.matches[idx] = match; else this.state.matches.push(match);
+    } catch (error) {
+      throw firestoreError('Match could not be saved', error);
+    }
   },
 
   getPredictionsForMatch(matchId: string): Prediction[] { return this.state.predictions.filter(p => p.matchId === matchId); },
   getPrediction(matchId: string, player: string): Prediction | undefined { return this.state.predictions.find(p => p.matchId === matchId && p.player === player); },
 
   async setPrediction(pred: Prediction) {
-    const idx = this.state.predictions.findIndex(p => p.matchId === pred.matchId && p.player === pred.player);
-    if (idx >= 0) this.state.predictions[idx] = pred; else this.state.predictions.push(pred);
-    await setDoc(doc(predictionsCol, `${pred.matchId}_${pred.player}`), pred);
+    try {
+      await setDoc(doc(predictionsCol, `${pred.matchId}_${pred.player}`), pred);
+      const idx = this.state.predictions.findIndex(p => p.matchId === pred.matchId && p.player === pred.player);
+      if (idx >= 0) this.state.predictions[idx] = pred; else this.state.predictions.push(pred);
+    } catch (error) {
+      throw firestoreError('Prediction could not be saved', error);
+    }
   },
 
   getCardsForGW(gw: number): CardEntry[] { return this.state.cards.filter(c => c.gw === gw).sort((a, b) => a.ts - b.ts); },
@@ -122,23 +141,32 @@ export const store = {
   async addCard(card: CardEntry): Promise<void> {
     const error = cardValidationError(card, this.state.cards);
     if (error) throw new Error(error);
-    this.state.cards.push(card);
+
+    // Write to Firestore first. This prevents the UI from showing a card that was never persisted.
     try {
       await setDoc(doc(cardsCol, card.id), card);
+      if (!this.state.cards.some(c => c.id === card.id)) this.state.cards.push(card);
     } catch (error) {
-      this.state.cards = this.state.cards.filter(c => c.id !== card.id);
-      throw error;
+      throw firestoreError('Card could not be saved', error);
     }
   },
 
   async removeCard(id: string) {
-    this.state.cards = this.state.cards.filter(c => c.id !== id);
-    await deleteDoc(doc(cardsCol, id));
+    try {
+      await deleteDoc(doc(cardsCol, id));
+      this.state.cards = this.state.cards.filter(c => c.id !== id);
+    } catch (error) {
+      throw firestoreError('Card could not be deleted', error);
+    }
   },
 
   async deleteMatch(id: string) {
-    this.state.matches = this.state.matches.filter(m => m.id !== id);
-    await deleteDoc(doc(matchesCol, id));
+    try {
+      await deleteDoc(doc(matchesCol, id));
+      this.state.matches = this.state.matches.filter(m => m.id !== id);
+    } catch (error) {
+      throw firestoreError('Match could not be deleted', error);
+    }
   }
 };
 
