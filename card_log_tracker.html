@@ -1,0 +1,411 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink:#10151a;
+    --panel:#1a2420;
+    --panel-2:#212f29;
+    --line:#2c3b34;
+    --chalk:#edede4;
+    --muted:#93a39a;
+    --pitch:#4caf6d;
+    --gold:#e0b94d;
+    --red:#d3564c;
+    --blue:#4c94d9;
+    --violet:#a479d6;
+    --maroon:#a24450;
+  }
+  *{box-sizing:border-box;}
+  .cardlog-root{
+    background:var(--ink);
+    color:var(--chalk);
+    font-family:'Inter',sans-serif;
+    width:100%;
+    min-height:100vh;
+    padding:20px 16px 40px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:0.03em;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* Masthead */
+  .masthead{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;}
+  .masthead h1{font-size:26px;font-weight:700;margin:0;color:var(--chalk);}
+  .masthead .sub{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:0.06em;}
+  .divider{height:1px;background:var(--line);margin:14px 0 18px;}
+
+  /* GW tabs */
+  .gwtabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:18px;scrollbar-width:thin;}
+  .gwtabs::-webkit-scrollbar{height:5px;}
+  .gwtabs::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+  .gwtab{
+    flex:0 0 auto;
+    font-family:'Oswald',sans-serif;
+    font-size:13px;
+    padding:7px 13px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--muted);
+    cursor:pointer;
+    border-radius:3px;
+  }
+  .gwtab.active{background:var(--pitch);color:#0d1712;border-color:var(--pitch);font-weight:600;}
+  .gwtab:hover:not(.active){border-color:var(--muted);color:var(--chalk);}
+
+  /* Squad strip */
+  .squad{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:22px;}
+  .player-chip{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;}
+  .player-chip .pname{font-family:'Oswald',sans-serif;font-size:15px;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+  .player-chip .pname .badge{font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--pitch);border:1px solid var(--pitch);padding:1px 5px;border-radius:3px;letter-spacing:0.04em;}
+  .inv-row{display:flex;gap:5px;flex-wrap:wrap;}
+  .inv-pill{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    padding:2px 6px;
+    border-radius:3px;
+    border:1px solid var(--line);
+    color:var(--muted);
+  }
+  .inv-pill b{color:var(--chalk);}
+  .inv-pill.zero{opacity:0.35;}
+
+  /* Two column layout */
+  .maingrid{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+  @media (max-width:760px){.maingrid{grid-template-columns:1fr;}}
+
+  .panel-box{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;}
+  .panel-box h2{font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;}
+
+  /* Log entries as "cards" */
+  .entry{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);}
+  .entry:last-child{border-bottom:none;}
+  .cardchip{
+    flex:0 0 46px;
+    height:60px;
+    border-radius:5px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    font-family:'Oswald',sans-serif;
+    font-size:10px;
+    font-weight:600;
+    line-height:1.15;
+    letter-spacing:0.02em;
+    text-transform:uppercase;
+    color:#0d1712;
+    padding:4px;
+  }
+  .entry-body{flex:1;}
+  .entry-title{font-size:13.5px;font-weight:600;}
+  .entry-meta{font-size:11.5px;color:var(--muted);margin-top:2px;font-family:'JetBrains Mono',monospace;}
+  .entry-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;line-height:1;}
+  .entry-del:hover{color:var(--red);}
+  .empty-log{color:var(--muted);font-size:13px;padding:10px 0;font-style:italic;}
+
+  .stack-note{font-size:11px;color:var(--gold);font-family:'JetBrains Mono',monospace;margin-bottom:10px;padding:6px 8px;background:rgba(224,185,77,0.08);border-left:2px solid var(--gold);}
+
+  /* Form */
+  .form-row{margin-bottom:11px;}
+  .form-row label{display:block;font-size:10.5px;color:var(--muted);margin-bottom:4px;font-family:'JetBrains Mono',monospace;letter-spacing:0.03em;text-transform:uppercase;}
+  .form-row select, .form-row input{
+    width:100%;
+    background:var(--ink);
+    border:1px solid var(--line);
+    color:var(--chalk);
+    padding:8px 9px;
+    border-radius:4px;
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+  }
+  .form-row select:focus, .form-row input:focus{outline:2px solid var(--pitch);outline-offset:0;border-color:var(--pitch);}
+  .form-two{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .btn-log{
+    width:100%;
+    background:var(--pitch);
+    color:#0d1712;
+    border:none;
+    padding:10px;
+    border-radius:4px;
+    font-family:'Oswald',sans-serif;
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    cursor:pointer;
+    margin-top:4px;
+  }
+  .btn-log:hover{background:#5cc17e;}
+  .btn-log:disabled{background:var(--line);color:var(--muted);cursor:not-allowed;}
+  .warn{font-size:11px;color:var(--red);margin-top:6px;}
+
+  /* Bank preview */
+  .bank{margin-top:22px;}
+  .bank-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+  .bank-card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;}
+  .bank-card .bname{font-family:'Oswald',sans-serif;font-size:13px;color:var(--muted);margin-bottom:4px;}
+  .bank-card .bval{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--pitch);}
+  .bank-card .bsub{font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .bank-note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5;}
+
+  .loading{color:var(--muted);font-size:13px;padding:20px 0;text-align:center;}
+</style>
+
+<div class="cardlog-root" id="root">
+  <div class="loading">Loading the card log…</div>
+</div>
+
+<script>
+(function(){
+  const PLAYERS = ['Agrim','Samarth','Dhairya','Luvi','Claude'];
+  const CARDS = {
+    captain: {label:'Captain', short:'CAPT', allowance:Infinity, color:'var(--pitch)', needsMatch:true, needsTarget:false, desc:'Doubles one match (base+scoreline+unique)'},
+    wildcard:{label:'Wild Card', short:'WILD', allowance:2, color:'var(--gold)', needsMatch:false, needsTarget:false, desc:'Doubles your whole GW (stacks: 1=2x, 2=4x)'},
+    chaos:   {label:'Chaos Card', short:'CHAOS', allowance:1, color:'var(--red)', needsMatch:false, needsTarget:false, desc:"Doubles EVERYONE's GW points"},
+    floor:   {label:'Floor Card', short:'FLOOR', allowance:3, color:'var(--blue)', needsMatch:false, needsTarget:false, desc:'Guarantees 5 pts min for the GW'},
+    mirror:  {label:'Mirror Card', short:'MIRR', allowance:5, color:'var(--violet)', needsMatch:true, needsTarget:true, desc:"Forces target to copy your pick (post-deadline) on one match"},
+    nemesis: {label:'Nemesis Card', short:'NEM', allowance:3, color:'var(--maroon)', needsMatch:false, needsTarget:true, desc:'Outscore target this GW, steal 3 pts'}
+  };
+  const TOTAL_GWS = 38;
+  const STORE_KEY = 'card_log_entries_v1';
+  const SEED_KEY = 'card_log_seeded_v1';
+
+  let entries = [];
+  let activeGW = 1;
+
+  const root = document.getElementById('root');
+
+  async function loadData(){
+    try{
+      const res = await window.storage.get(STORE_KEY, true);
+      entries = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ entries = []; }
+
+    let seeded = false;
+    try{
+      const s = await window.storage.get(SEED_KEY, true);
+      seeded = s && s.value === 'true';
+    }catch(e){ seeded = false; }
+
+    if(!seeded){
+      entries.push(
+        {id: genId(), gw:1, player:'Claude', card:'captain', matchNo:1, target:null, note:'Arsenal 3-0 Coventry — highest-conviction result of the round', ts:Date.now()},
+        {id: genId(), gw:1, player:'Claude', card:'nemesis', matchNo:null, target:'Agrim', note:'Founder tax. Opening-day banter pick.', ts:Date.now()}
+      );
+      await saveEntries();
+      try{ await window.storage.set(SEED_KEY, 'true', true); }catch(e){}
+    }
+    render();
+  }
+
+  function genId(){ return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+
+  async function saveEntries(){
+    try{ await window.storage.set(STORE_KEY, JSON.stringify(entries), true); }
+    catch(e){ console.error('save failed', e); }
+  }
+
+  function countPlayed(player, card, uptoGW){
+    return entries.filter(e => e.player===player && e.card===card && (uptoGW===undefined || e.gw<=uptoGW)).length;
+  }
+
+  function remaining(player, card){
+    const allowance = CARDS[card].allowance;
+    if(allowance === Infinity) return Infinity;
+    return Math.max(0, allowance - countPlayed(player, card));
+  }
+
+  function renderGwTabs(){
+    let html = '';
+    for(let i=1;i<=TOTAL_GWS;i++){
+      html += `<div class="gwtab ${i===activeGW?'active':''}" data-gw="${i}">GW${i}</div>`;
+    }
+    return html;
+  }
+
+  function renderSquad(){
+    return PLAYERS.map(p=>{
+      const pills = Object.keys(CARDS).filter(c=>c!=='captain').map(c=>{
+        const rem = remaining(p,c);
+        return `<span class="inv-pill ${rem===0?'zero':''}" style="border-color:${CARDS[c].color}22">${CARDS[c].short} <b>${rem}</b></span>`;
+      }).join('');
+      return `<div class="player-chip">
+        <div class="pname">${p} ${p==='Claude' ? '<span class="badge">ME</span>' : ''}</div>
+        <div class="inv-row">${pills}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function matchLabel(n){
+    return n ? `Match ${n}` : '';
+  }
+
+  function renderLog(){
+    const gwEntries = entries.filter(e=>e.gw===activeGW).sort((a,b)=>a.ts-b.ts);
+    let stackNote = '';
+
+    const wcByPlayer = {};
+    const chaosCount = gwEntries.filter(e=>e.card==='chaos').length;
+    gwEntries.filter(e=>e.card==='wildcard').forEach(e=>{ wcByPlayer[e.player]=(wcByPlayer[e.player]||0)+1; });
+    const stackLines = [];
+    Object.keys(wcByPlayer).forEach(p=>{
+      const n = wcByPlayer[p];
+      if(n>1) stackLines.push(`${p}: ${n} Wild Cards stacked → ${Math.pow(2,n)}x this GW`);
+    });
+    if(chaosCount>1) stackLines.push(`${chaosCount} Chaos Cards played this GW → ${Math.pow(2,chaosCount)}x for everyone`);
+    if(stackLines.length) stackNote = `<div class="stack-note">⚡ ${stackLines.join(' · ')}</div>`;
+
+    if(gwEntries.length===0){
+      return stackNote + `<div class="empty-log">No cards played for GW${activeGW} yet.</div>`;
+    }
+
+    return stackNote + gwEntries.map(e=>{
+      const c = CARDS[e.card];
+      let meta = [];
+      if(e.matchNo) meta.push(matchLabel(e.matchNo));
+      if(e.target) meta.push(`vs ${e.target}`);
+      if(e.note) meta.push(e.note);
+      return `<div class="entry">
+        <div class="cardchip" style="background:${c.color}">${c.short}</div>
+        <div class="entry-body">
+          <div class="entry-title">${e.player} — ${c.label}</div>
+          <div class="entry-meta">${meta.join(' · ')}</div>
+        </div>
+        <button class="entry-del" data-id="${e.id}" title="Remove entry">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  function renderForm(){
+    const cardOptions = Object.keys(CARDS).map(c=>`<option value="${c}">${CARDS[c].label}</option>`).join('');
+    const playerOptions = PLAYERS.map(p=>`<option value="${p}">${p}</option>`).join('');
+    return `
+      <div class="form-row">
+        <label>Gameweek</label>
+        <input type="number" id="f-gw" min="1" max="${TOTAL_GWS}" value="${activeGW}">
+      </div>
+      <div class="form-two">
+        <div class="form-row">
+          <label>Player</label>
+          <select id="f-player">${playerOptions}</select>
+        </div>
+        <div class="form-row">
+          <label>Card</label>
+          <select id="f-card">${cardOptions}</select>
+        </div>
+      </div>
+      <div class="form-two">
+        <div class="form-row">
+          <label>Match No. (if needed)</label>
+          <input type="number" id="f-match" min="1" max="10" placeholder="—">
+        </div>
+        <div class="form-row">
+          <label>Target (if needed)</label>
+          <select id="f-target"><option value="">—</option>${playerOptions}</select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Note (optional)</label>
+        <input type="text" id="f-note" placeholder="e.g. reasoning, banter, receipts">
+      </div>
+      <div id="f-warn" class="warn"></div>
+      <button class="btn-log" id="f-submit">Log this card</button>
+    `;
+  }
+
+  function bankValue(player){
+    let total = 0;
+    Object.keys(CARDS).forEach(c=>{
+      if(c==='captain') return;
+      const rem = remaining(player,c);
+      total += rem * 2;
+    });
+    return total;
+  }
+
+  function renderBank(){
+    return PLAYERS.map(p=>{
+      const v = bankValue(p);
+      return `<div class="bank-card">
+        <div class="bname">${p}</div>
+        <div class="bval">+${v}</div>
+        <div class="bsub">if season ended now</div>
+      </div>`;
+    }).join('');
+  }
+
+  function render(){
+    root.innerHTML = `
+      <div class="masthead">
+        <h1>The Card Log</h1>
+        <div class="sub">PL 26/27 · 5-A-SIDE PREDICTIONS LEAGUE</div>
+      </div>
+      <div class="divider"></div>
+      <div class="gwtabs" id="gwtabs">${renderGwTabs()}</div>
+      <div class="squad">${renderSquad()}</div>
+      <div class="maingrid">
+        <div class="panel-box">
+          <h2>GW${activeGW} — Cards Played</h2>
+          <div id="logbox">${renderLog()}</div>
+        </div>
+        <div class="panel-box">
+          <h2>Log a Card</h2>
+          <div id="formbox">${renderForm()}</div>
+        </div>
+      </div>
+      <div class="bank">
+        <div class="panel-box">
+          <h2>Season Bank Preview</h2>
+          <div class="bank-grid">${renderBank()}</div>
+          <div class="bank-note">Unused cards convert to +2 pts each at the end of GW38. Captain isn't card-limited, so it never banks.</div>
+        </div>
+      </div>
+    `;
+    attachHandlers();
+  }
+
+  function attachHandlers(){
+    document.getElementById('gwtabs').querySelectorAll('.gwtab').forEach(el=>{
+      el.addEventListener('click', ()=>{ activeGW = parseInt(el.dataset.gw,10); render();
+        setTimeout(()=>{ const t=document.querySelector(`.gwtab[data-gw="${activeGW}"]`); if(t) t.scrollIntoView({inline:'center',block:'nearest'}); },0);
+      });
+    });
+    document.querySelectorAll('.entry-del').forEach(el=>{
+      el.addEventListener('click', async ()=>{
+        entries = entries.filter(e=>e.id!==el.dataset.id);
+        await saveEntries();
+        render();
+      });
+    });
+    document.getElementById('f-submit').addEventListener('click', async ()=>{
+      const gw = parseInt(document.getElementById('f-gw').value,10);
+      const player = document.getElementById('f-player').value;
+      const card = document.getElementById('f-card').value;
+      const matchNo = document.getElementById('f-match').value ? parseInt(document.getElementById('f-match').value,10) : null;
+      const target = document.getElementById('f-target').value || null;
+      const note = document.getElementById('f-note').value || '';
+      const warnBox = document.getElementById('f-warn');
+      warnBox.textContent = '';
+
+      if(!gw || gw<1 || gw>TOTAL_GWS){ warnBox.textContent = 'Enter a valid gameweek (1-38).'; return; }
+      const cdef = CARDS[card];
+      if(cdef.needsTarget && !target){ warnBox.textContent = `${cdef.label} needs a target player.`; return; }
+      if(cdef.needsMatch && !matchNo){ warnBox.textContent = `${cdef.label} needs a match number.`; return; }
+
+      const rem = remaining(player, card);
+      if(rem !== Infinity && rem<=0){
+        warnBox.textContent = `${player} has no ${cdef.label}s left for the season.`;
+        return;
+      }
+
+      entries.push({id:genId(), gw, player, card, matchNo, target, note, ts:Date.now()});
+      await saveEntries();
+      activeGW = gw;
+      render();
+    });
+  }
+
+  loadData();
+})();
+</script>
