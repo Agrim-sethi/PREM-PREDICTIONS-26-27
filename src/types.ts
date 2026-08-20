@@ -19,7 +19,7 @@ export const CARDS: Record<CardType, CardDef> = {
   wildcard:{label:'Wild Card', short:'WILD', allowance:2, perGameweek:false, color:'var(--gold)', needsMatch:false, needsTarget:false, desc:'2 available for the season · doubles your whole GW (stacks: 1=2x, 2=4x)'},
   chaos:   {label:'Chaos Card', short:'CHAOS', allowance:1, perGameweek:false, color:'var(--red)', needsMatch:false, needsTarget:false, desc:'1 available for the season · doubles EVERYONE\'s GW points'},
   floor:   {label:'Floor Card', short:'FLOOR', allowance:3, perGameweek:false, color:'var(--blue)', needsMatch:false, needsTarget:false, desc:'3 available for the season · guarantees 5 pts minimum for the GW'},
-  mirror:  {label:'Mirror Card', short:'MIRR', allowance:5, perGameweek:false, color:'var(--violet)', needsMatch:true, needsTarget:true, desc:'5 available for the season · forces target\'s prediction to be overwritten by yours'},
+  mirror:  {label:'Mirror', short:'MIRR', allowance:5, perGameweek:false, color:'var(--violet)', needsMatch:true, needsTarget:true, desc:'5 available for the season · forces target\'s prediction to be overwritten by yours'},
   nemesis: {label:'Nemesis', short:'NEM', allowance:3, perGameweek:false, color:'var(--maroon)', needsMatch:false, needsTarget:true, desc:'3 available for the season · outscore target this GW, steal 3 pts'}
 };
 
@@ -41,14 +41,22 @@ export interface Prediction {
   away: number | null;
 }
 
+/**
+ * Card plays are represented as immutable slot documents.
+ * The slotId determines the unique card instance:
+ *   Captain:       <player>_captain_gw<gw>
+ *   Finite cards:  <player>_<card>_<1..allowance>
+ */
 export interface CardEntry {
   id: string;
+  slotId: string;
   gw: number;
-  player: string;
+  player: Player;
   card: CardType;
-  matchNo?: number;
-  target?: Player;
-  note?: string;
+  matchNo: number | null;
+  target: Player | null;
+  note: string | null;
+  createdByUid: string;
   ts: number;
 }
 
