@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   projectId: "prem-predict-2627-agrim",
@@ -11,4 +11,9 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, 'predictions-db');
+
+// Card entries intentionally omit optional fields such as target/matchNo when they are not needed.
+// Ignore those undefined properties so valid card writes are persisted to Firestore.
+export const db = initializeFirestore(app, {
+  ignoreUndefinedProperties: true,
+}, 'predictions-db');
