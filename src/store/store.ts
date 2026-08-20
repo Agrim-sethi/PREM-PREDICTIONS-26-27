@@ -9,6 +9,7 @@ import {
   QuerySnapshot,
   DocumentData
 } from 'firebase/firestore';
+import { FixtureSeed } from '../data/fixtures';
 
 export interface AppState {
   matches: Match[];
@@ -22,41 +23,57 @@ const defaultState: AppState = {
   cards: []
 };
 
-// Firestore collection references
 const matchesCol = collection(db, 'matches');
 const predictionsCol = collection(db, 'predictions');
 const cardsCol = collection(db, 'cards');
-
-// Unsubscribe functions stored for potential cleanup
 const _unsubscribers: (() => void)[] = [];
 
 export const store = {
   state: { ...defaultState } as AppState,
   _onUpdate: null as (() => void) | null,
 
-  load(onUpdate?: () => void) {
+  load(onUpdate?: () => void, onMatchesLoaded?: (matches: Match[]) => void) {
     if (onUpdate) this._onUpdate = onUpdate;
+    let firstMatchSnapshot = true;
 
-    // Listen to matches collection
     _unsubscribers.push(onSnapshot(matchesCol, (snap: QuerySnapshot<DocumentData>) => {
       this.state.matches = snap.docs.map(d => ({ ...d.data(), id: d.id } as Match));
+      if (firstMatchSnapshot) {
+        firstMatchSnapshot = false;
+        onMatchesLoaded?.(this.state.matches);
+      }
       this._onUpdate?.();
     }));
 
-    // Listen to predictions collection
     _unsubscribers.push(onSnapshot(predictionsCol, (snap: QuerySnapshot<DocumentData>) => {
       this.state.predictions = snap.docs.map(d => d.data() as Prediction);
       this._onUpdate?.();
     }));
 
-    // Listen to cards collection
     _unsubscribers.push(onSnapshot(cardsCol, (snap: QuerySnapshot<DocumentData>) => {
       this.state.cards = snap.docs.map(d => ({ ...d.data(), id: d.id } as CardEntry));
       this._onUpdate?.();
     }));
   },
 
-  // Helpers (read from local state, which is kept in sync by onSnapshot)
+  async seedFixtures(fixtures: FixtureSeed[]): Promise<void> {
+    // Only seed an empty match collection. Existing match/result records are never overwritten.
+    if (this.state.matches.length > 0) return;
+    await Promise.all(fixtures.map(fixture => {
+      const match: Match = {
+        id: fixture.id,
+        gw: fixture.gw,
+        matchNo: fixture.matchNo,
+        home: fixture.home,
+        away: fixture.away,
+        date: '',
+        time: ''
+      };
+      this.state.matches.push(match);
+      return setDoc(doc(matchesCol, match.id), match);
+    }));
+  },
+
   getMatchesByGW(gw: number): Match[] {
     return this.state.matches.filter(m => m.gw === gw).sort((a, b) => a.matchNo - b.matchNo);
   },
@@ -67,11 +84,8 @@ export const store = {
 
   async addOrUpdateMatch(match: Match) {
     const idx = this.state.matches.findIndex(m => m.id === match.id);
-    if (idx >= 0) {
-      this.state.matches[idx] = match;
-    } else {
-      this.state.matches.push(match);
-    }
+    if (idx >= 0) this.state.matches[idx] = match;
+    else this.state.matches.push(match);
     await setDoc(doc(matchesCol, match.id), match);
   },
 
@@ -85,12 +99,8 @@ export const store = {
 
   async setPrediction(pred: Prediction) {
     const idx = this.state.predictions.findIndex(p => p.matchId === pred.matchId && p.player === pred.player);
-    if (idx >= 0) {
-      this.state.predictions[idx] = pred;
-    } else {
-      this.state.predictions.push(pred);
-    }
-    // Use a composite key for prediction docs
+    if (idx >= 0) this.state.predictions[idx] = pred;
+    else this.state.predictions.push(pred);
     const predId = `${pred.matchId}_${pred.player}`;
     await setDoc(doc(predictionsCol, predId), pred);
   },
