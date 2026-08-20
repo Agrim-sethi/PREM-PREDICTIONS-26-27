@@ -17,7 +17,7 @@ export function renderFixturesView(): string {
       <h2 style="font-family:'Oswald',sans-serif; color:var(--chalk); margin-bottom:8px; font-size:16px; text-transform:uppercase;">Season Fixture Import</h2>
       <p style="color:var(--muted); font-size:13px; margin-bottom:12px; line-height:1.45;">
         Gameweeks
-        Currently loaded: <b style="color:var(--chalk);">${available.length ? available.map(g => `GW${g}`).join(', ') : 'none'}</b>
+        currently loaded: <b style="color:var(--chalk);">${available.length ? available.map(g => `GW${g}`).join(', ') : 'none'}</b>
         · Missing seed rows: <b style="color:${missingCount ? 'var(--gold)' : 'var(--pitch)'};">${missingCount}</b>
       </p>
       <button id="fx-seed-all" style="background:var(--pitch); color:#0d1712; padding:10px 16px; border:none; border-radius:4px; font-family:'Oswald',sans-serif; font-weight:700; cursor:pointer;">
