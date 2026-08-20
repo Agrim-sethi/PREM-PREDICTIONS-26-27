@@ -16,7 +16,7 @@ export function renderFixturesView(): string {
     <div class="panel-box" style="background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:16px; margin-bottom:18px;">
       <h2 style="font-family:'Oswald',sans-serif; color:var(--chalk); margin-bottom:8px; font-size:16px; text-transform:uppercase;">Season Fixture Import</h2>
       <p style="color:var(--muted); font-size:13px; margin-bottom:12px; line-height:1.45;">
-        Gameweeks only appear in the Gameweek tab after matches exist in Firestore.
+        Gameweeks
         Currently loaded: <b style="color:var(--chalk);">${available.length ? available.map(g => `GW${g}`).join(', ') : 'none'}</b>
         · Missing seed rows: <b style="color:${missingCount ? 'var(--gold)' : 'var(--pitch)'};">${missingCount}</b>
       </p>
