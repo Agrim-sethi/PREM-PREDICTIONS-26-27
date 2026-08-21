@@ -264,6 +264,7 @@ export function renderLeaderboard(): string {
     <div class="panel-box" style="background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:16px; overflow-x:auto;">
       <h2 style="font-family:'Oswald',sans-serif; font-size:16px; color:var(--chalk); margin-bottom:16px; text-transform:uppercase;">Overall Leaderboard</h2>
       
+      <div class="table-scroll" tabindex="0" aria-label="Overall leaderboard table">
       <table style="width:100%; border-collapse: collapse; text-align: left; min-width:600px;">
         <thead>
           <tr style="border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; font-family: 'JetBrains Mono', monospace;">
@@ -292,6 +293,7 @@ export function renderLeaderboard(): string {
           `).join('')}
         </tbody>
       </table>
+      </div>
     </div>
     ${renderRaceChart(raceChartData)}
   `;

@@ -61,10 +61,10 @@ function syncDependentFields() {
 function playForm(player: Player | null, admin: boolean): string {
   const actualPlayer = player ?? PLAYERS[0];
   const locked = !admin && store.isGameweekLocked(1);
-  return `<div class="panel-box" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;">
+  return `<div class="panel-box cardlog-panel cardlog-form" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;">
     <h2 style="font-family:'Oswald',sans-serif;color:var(--muted);margin-bottom:12px;font-size:14px;text-transform:uppercase;">${admin ? 'Admin Card Controls' : 'Play Your Card'}</h2>
     <div style="font-size:11px;color:${admin ? 'var(--gold)' : 'var(--pitch)'};font-family:'JetBrains Mono',monospace;margin-bottom:12px;">${admin ? 'ADMIN OVERRIDE · LOG OR REMOVE ANY PLAYER CARD' : `PLAYING AS ${actualPlayer.toUpperCase()} · ONLY YOUR CARD INVENTORY IS AVAILABLE`}</div>
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+    <div class="cardlog-form-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
       <div><label>Gameweek</label><input type="number" id="fc-gw" min="1" max="38" value="1"></div>
       ${admin ? `<div><label>Player</label><select id="fc-player">${PLAYERS.map(p => `<option value="${p}">${p}</option>`).join('')}</select></div>` : `<input type="hidden" id="fc-player" value="${actualPlayer}"><div><label>Player</label><input value="${actualPlayer}" disabled></div>`}
       <div><label>Card</label><select id="fc-card" ${locked ? 'disabled' : ''}>${cardOptions(actualPlayer, 1, locked)}</select></div>
@@ -78,7 +78,7 @@ function playForm(player: Player | null, admin: boolean): string {
 }
 
 function arsenal(player: Player): string {
-  return `<div class="panel-box" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;">
+  return `<div class="panel-box cardlog-panel" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;">
     <h2 style="font-family:'Oswald',sans-serif;color:var(--muted);margin-bottom:12px;font-size:14px;text-transform:uppercase;">Your Card Arsenal · ${player}</h2>
     <div style="display:flex;flex-direction:column;gap:8px;">
       ${Object.entries(CARDS).map(([key, def]) => {
@@ -103,11 +103,11 @@ function arsenal(player: Player): string {
 function history(admin: boolean): string {
   const loadError = store.loadError;
   const cards = [...store.state.cards].sort((a, b) => b.ts - a.ts);
-  return `<div class="panel-box" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;">
+  return `<div class="panel-box cardlog-panel cardlog-history" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;">
     <h2 style="font-family:'Oswald',sans-serif;color:var(--muted);margin-bottom:12px;font-size:14px;text-transform:uppercase;">Cards in Play</h2>
     <div style="color:var(--muted);font-size:11px;margin-bottom:12px;font-family:'JetBrains Mono',monospace;">ALL CARD PLAYS · ${admin ? 'ADMIN CONTROL' : 'READ-ONLY HISTORY'}</div>
     ${loadError ? `<div style="color:var(--red);font-size:12px;margin-bottom:12px;">${loadError}</div>` : ''}
-    <div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="cardlog-history-list" style="display:flex;flex-direction:column;gap:10px;">
       ${cards.length ? cards.map(c => {
         const def = CARDS[c.card];
         if (!def) {
@@ -132,9 +132,9 @@ export function renderCardLog(): string {
   const profile = getProfile();
   const currentPlayer = profile?.player ?? null;
   if (admin) {
-    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">${history(true)}${playForm(currentPlayer, true)}</div>`;
+    return `<div class="cardlog-layout cardlog-layout-admin">${history(true)}${playForm(currentPlayer, true)}</div>`;
   }
-  return `<div style="display:grid;grid-template-columns:1fr 1.2fr;gap:18px;"><div style="display:flex;flex-direction:column;gap:18px;">${currentPlayer ? arsenal(currentPlayer) : ''}${playForm(currentPlayer, false)}</div>${history(false)}</div>`;
+  return `<div class="cardlog-layout cardlog-layout-player"><div class="cardlog-sidebar">${currentPlayer ? arsenal(currentPlayer) : ''}${playForm(currentPlayer, false)}</div>${history(false)}</div>`;
 }
 
 function refreshCardControls(profilePlayer: Player | null, admin: boolean) {
