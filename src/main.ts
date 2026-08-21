@@ -4,6 +4,7 @@ import { renderTabs, attachTabHandlers } from './components/tabs';
 import { renderLeaderboard, attachLeaderboardHandlers } from './views/leaderboard';
 import { renderGameweek, attachGameweekHandlers } from './views/gameweek';
 import { renderCardLog, attachCardLogHandlers } from './views/cardlog';
+import { renderAdminArsenal } from './views/adminArsenal';
 import { renderFixturesView, attachFixturesHandlers } from './views/fixturesView';
 import { attachLoginHandlers, renderLogin } from './views/login';
 import { getProfile, logout, watchAuth, AppProfile, isAdmin } from './auth';
@@ -35,7 +36,13 @@ function renderApp() {
   switch (currentTab) {
     case 'leaderboard': contentHtml = renderLeaderboard(); break;
     case 'gameweek': contentHtml = renderGameweek(); break;
-    case 'cardlog': contentHtml = renderCardLog(); break;
+    case 'cardlog': {
+      const cardLogHtml = renderCardLog();
+      contentHtml = isAdmin()
+        ? `<div class="cardlog-layout cardlog-layout-player"><div class="cardlog-sidebar">${renderAdminArsenal(profile.player)}</div><div>${cardLogHtml}</div></div>`
+        : cardLogHtml;
+      break;
+    }
     case 'fixtures': contentHtml = renderFixturesView(); break;
   }
 
