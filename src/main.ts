@@ -8,7 +8,6 @@ import { renderFixturesView, attachFixturesHandlers } from './views/fixturesView
 import { attachLoginHandlers, renderLogin } from './views/login';
 import { getProfile, logout, watchAuth, AppProfile, isAdmin } from './auth';
 import { FIXTURES } from './data/fixtures';
-import { PLAYERS } from './types';
 
 let currentTab = 'leaderboard';
 let authReady = false;
