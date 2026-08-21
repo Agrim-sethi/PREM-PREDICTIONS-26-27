@@ -4,11 +4,11 @@ import { renderTabs, attachTabHandlers } from './components/tabs';
 import { renderLeaderboard, attachLeaderboardHandlers } from './views/leaderboard';
 import { renderGameweek, attachGameweekHandlers } from './views/gameweek';
 import { renderCardLog, attachCardLogHandlers } from './views/cardlog';
-import { renderAdminArsenal } from './views/adminArsenal';
 import { renderFixturesView, attachFixturesHandlers } from './views/fixturesView';
 import { attachLoginHandlers, renderLogin } from './views/login';
 import { getProfile, logout, watchAuth, AppProfile, isAdmin } from './auth';
 import { FIXTURES } from './data/fixtures';
+import { PLAYERS } from './types';
 
 let currentTab = 'leaderboard';
 let authReady = false;
@@ -16,6 +16,43 @@ let authReady = false;
 function allowedTab(tab: string, profile: AppProfile | null): boolean {
   if (tab === 'fixtures') return profile?.role === 'admin';
   return ['leaderboard', 'gameweek', 'cardlog'].includes(tab);
+}
+
+function applyCaptainHighlight() {
+  const profile = getProfile();
+  if (!profile) return;
+
+  document.querySelectorAll<HTMLElement>('.captain-highlight').forEach(el => {
+    el.classList.remove('captain-highlight');
+    el.style.boxShadow = '';
+    el.style.borderColor = '';
+    el.querySelectorAll('.captain-badge').forEach(b => b.remove());
+  });
+
+  const gwSelect = document.getElementById('gw-select') as HTMLSelectElement | HTMLInputElement | null;
+  const gw = gwSelect ? parseInt(gwSelect.value, 10) : 1;
+  if (!Number.isInteger(gw)) return;
+
+  const player = profile.player;
+  const captain = store.getCardsForGW(gw).find(c => c.card === 'captain' && c.player === player);
+  if (!captain || captain.matchNo == null) return;
+
+  const match = store.getMatchesByGW(gw).find(m => m.matchNo === captain.matchNo);
+  if (!match) return;
+
+  const input = document.querySelector<HTMLInputElement>(`.pred-input[data-match="${match.id}"][data-player="${player}"]`);
+  const box = input?.parentElement?.parentElement as HTMLElement | null;
+  if (!box) return;
+
+  box.classList.add('captain-highlight');
+  box.style.borderColor = 'var(--gold)';
+  box.style.boxShadow = '0 0 0 2px var(--gold), 0 0 18px rgba(255, 196, 64, 0.22)';
+  const badge = document.createElement('span');
+  badge.className = 'captain-badge';
+  badge.textContent = '★ CAPTAIN';
+  badge.style.cssText = "font:700 9px 'JetBrains Mono',monospace;color:var(--gold);margin-left:6px;letter-spacing:.04em;";
+  const header = box.firstElementChild;
+  header?.appendChild(badge);
 }
 
 function renderLoginScreen() {
@@ -36,13 +73,7 @@ function renderApp() {
   switch (currentTab) {
     case 'leaderboard': contentHtml = renderLeaderboard(); break;
     case 'gameweek': contentHtml = renderGameweek(); break;
-    case 'cardlog': {
-      const cardLogHtml = renderCardLog();
-      contentHtml = isAdmin()
-        ? `<div class="cardlog-layout cardlog-layout-player"><div class="cardlog-sidebar">${renderAdminArsenal(profile.player)}</div><div>${cardLogHtml}</div></div>`
-        : cardLogHtml;
-      break;
-    }
+    case 'cardlog': contentHtml = renderCardLog(); break;
     case 'fixtures': contentHtml = renderFixturesView(); break;
   }
 
@@ -73,7 +104,10 @@ function renderApp() {
 
   switch (currentTab) {
     case 'leaderboard': attachLeaderboardHandlers(); break;
-    case 'gameweek': attachGameweekHandlers(renderApp); break;
+    case 'gameweek':
+      attachGameweekHandlers(renderApp);
+      applyCaptainHighlight();
+      break;
     case 'cardlog': attachCardLogHandlers(renderApp); break;
     case 'fixtures': attachFixturesHandlers(renderApp); break;
   }
