@@ -20,10 +20,7 @@ function validateCardFields(card: CardType, matchNo: number | null, target: Play
       return `${def.label} requires a match number from 1-10.`;
     }
   }
-  if (def.needsTarget) {
-    if (!target) return `${def.label} requires a target player.`;
-    return null;
-  }
+  if (def.needsTarget && !target) return `${def.label} requires a target player.`;
   return null;
 }
 
@@ -53,7 +50,6 @@ function syncDependentFields() {
 
   matchInput.disabled = !def.needsMatch;
   if (!def.needsMatch) matchInput.value = '';
-
   targetSelect.disabled = !def.needsTarget;
   if (!def.needsTarget) targetSelect.value = '';
 }
@@ -84,9 +80,7 @@ function arsenal(player: Player): string {
       ${Object.entries(CARDS).map(([key, def]) => {
         const card = key as CardType;
         const remaining = store.getCardRemaining(player, card, 1);
-        const label = def.perGameweek
-          ? '1 EACH GW'
-          : `${remaining} / ${def.allowance} LEFT`;
+        const label = def.perGameweek ? '1 EACH GW' : `${remaining} / ${def.allowance} LEFT`;
         const depleted = !def.perGameweek && remaining <= 0;
         return `<div style="border:1px solid ${def.color}55;background:var(--ink);border-radius:5px;padding:10px 12px;opacity:${depleted ? '0.55' : '1'};">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
@@ -110,9 +104,7 @@ function history(admin: boolean): string {
     <div class="cardlog-history-list" style="display:flex;flex-direction:column;gap:10px;">
       ${cards.length ? cards.map(c => {
         const def = CARDS[c.card];
-        if (!def) {
-          return `<div style="padding:9px 0;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;">Unknown card play · ${c.player} · GW${c.gw}</div>`;
-        }
+        if (!def) return `<div style="padding:9px 0;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;">Unknown card play · ${c.player} · GW${c.gw}</div>`;
         const meta: string[] = [`GW${c.gw}`];
         if (c.matchNo !== null) meta.push(`Match ${c.matchNo}`);
         if (c.target) meta.push(`vs ${c.target}`);
@@ -132,9 +124,21 @@ export function renderCardLog(): string {
   const profile = getProfile();
   const currentPlayer = profile?.player ?? null;
   if (admin) {
-    return `<div class="cardlog-layout cardlog-layout-admin">${history(true)}${playForm(currentPlayer, true)}</div>`;
+    const selected = currentPlayer ?? PLAYERS[0];
+    return `<div class="cardlog-layout cardlog-layout-admin">
+      <div class="cardlog-sidebar">
+        <div id="admin-card-arsenal">${arsenal(selected)}</div>
+        ${playForm(selected, true)}
+      </div>
+      ${history(true)}
+    </div>`;
   }
   return `<div class="cardlog-layout cardlog-layout-player"><div class="cardlog-sidebar">${currentPlayer ? arsenal(currentPlayer) : ''}${playForm(currentPlayer, false)}</div>${history(false)}</div>`;
+}
+
+function refreshAdminArsenal(player: Player) {
+  const host = document.getElementById('admin-card-arsenal');
+  if (host) host.innerHTML = arsenal(player);
 }
 
 function refreshCardControls(profilePlayer: Player | null, admin: boolean) {
@@ -148,19 +152,18 @@ function refreshCardControls(profilePlayer: Player | null, admin: boolean) {
   const gw = Math.max(1, Math.min(38, parseInt(gwInput.value, 10) || 1));
   const player = (admin ? playerInput.value : profilePlayer) as Player | null;
   if (!player) return;
+  if (admin) refreshAdminArsenal(player);
   const locked = !admin && store.isGameweekLocked(gw);
   const previous = cardSelect.value;
   cardSelect.innerHTML = cardOptions(player, gw, locked);
   cardSelect.disabled = locked;
-  if (previous && [...cardSelect.options].some(o => o.value === previous && !o.disabled)) {
-    cardSelect.value = previous;
-  }
+  if (previous && [...cardSelect.options].some(o => o.value === previous && !o.disabled)) cardSelect.value = previous;
   syncDependentFields();
 
   const submitBtn = document.getElementById('fc-submit') as HTMLButtonElement | null;
   const warn = document.getElementById('fc-warn');
-  if (matchInput) matchInput.disabled = locked || matchInput.disabled;
-  if (targetSelect) targetSelect.disabled = locked || targetSelect.disabled;
+  if (matchInput) matchInput.disabled = locked || !CARDS[cardSelect.value as CardType]?.needsMatch;
+  if (targetSelect) targetSelect.disabled = locked || !CARDS[cardSelect.value as CardType]?.needsTarget;
   if (noteInput) noteInput.disabled = locked;
   if (submitBtn) {
     submitBtn.disabled = locked;
@@ -171,9 +174,7 @@ function refreshCardControls(profilePlayer: Player | null, admin: boolean) {
   }
   if (warn) {
     warn.style.color = 'var(--red)';
-    warn.textContent = locked
-      ? `GW${gw} is locked. Cards for locked gameweeks can only be changed by the admin.`
-      : '';
+    warn.textContent = locked ? `GW${gw} is locked. Cards for locked gameweeks can only be changed by the admin.` : '';
   }
 }
 
@@ -182,9 +183,7 @@ function refreshTargetOptions(player: Player) {
   if (!targetSelect) return;
   const previous = targetSelect.value;
   targetSelect.innerHTML = `<option value="">—</option>${PLAYERS.filter(p => p !== player).map(p => `<option value="${p}">${p}</option>`).join('')}`;
-  if (previous && previous !== player && PLAYERS.includes(previous as Player)) {
-    targetSelect.value = previous;
-  }
+  if (previous && previous !== player && PLAYERS.includes(previous as Player)) targetSelect.value = previous;
 }
 
 export function attachCardLogHandlers(reRender: () => void) {
@@ -196,10 +195,8 @@ export function attachCardLogHandlers(reRender: () => void) {
   document.querySelectorAll('.del-card-btn').forEach(btn => btn.addEventListener('click', async event => {
     if (!admin) return;
     const id = (event.currentTarget as HTMLElement).dataset.id;
-    if (!id) return;
-    if (!window.confirm('Delete this card play? The card becomes available again.')) return;
-    try { await store.removeCard(id); reRender(); }
-    catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
+    if (!id || !window.confirm('Delete this card play? The card becomes available again.')) return;
+    try { await store.removeCard(id); reRender(); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
   }));
 
   const gwInput = document.getElementById('fc-gw') as HTMLInputElement | null;
@@ -212,7 +209,7 @@ export function attachCardLogHandlers(reRender: () => void) {
     if (selected) refreshTargetOptions(selected);
     refreshCardControls(profilePlayer, admin);
   });
-  cardSelect?.addEventListener('change', () => syncDependentFields());
+  cardSelect?.addEventListener('change', syncDependentFields);
   refreshCardControls(profilePlayer, admin);
 
   document.getElementById('fc-submit')?.addEventListener('click', async () => {
@@ -245,7 +242,6 @@ export function attachCardLogHandlers(reRender: () => void) {
 
     const { matchNo, target } = normalizeCardFields(card, rawMatchNo, rawTarget);
     syncDependentFields();
-
     const shapeError = validateCardFields(card, matchNo, target);
     if (shapeError) { warn.textContent = shapeError; return; }
     if (target && target === player) { warn.textContent = 'A player cannot target themselves.'; return; }
@@ -272,10 +268,7 @@ export function attachCardLogHandlers(reRender: () => void) {
       ts: Date.now()
     };
 
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Saving…';
-    }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
     try {
       await store.addCard(entry);
       warn.style.color = 'var(--pitch)';
@@ -284,10 +277,7 @@ export function attachCardLogHandlers(reRender: () => void) {
     } catch (error) {
       warn.style.color = 'var(--red)';
       warn.textContent = error instanceof Error ? error.message : 'Card could not be saved.';
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = admin ? 'Log Card' : 'Play This Card';
-      }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = admin ? 'Log Card' : 'Play This Card'; }
     }
   });
 }
