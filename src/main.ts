@@ -122,6 +122,9 @@ watchAuth(profile => {
       if (isAdmin()) {
         try {
           await store.seedFixtures(FIXTURES);
+          for (let gw = 1; gw <= 38; gw++) {
+            await store.markGameweekCompleteIfReady(gw);
+          }
         } catch (error) {
           console.error(error);
         }
