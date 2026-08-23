@@ -37,6 +37,7 @@ service cloud.firestore {
 
     function gwOpen(gw) {
       return validGameweek(gw) &&
+        !exists(/databases/$(database)/documents/matches/__gwcomplete_$(gw)) &&
         (
           !exists(/databases/$(database)/documents/matches/__gwlock_$(gw)) ||
           get(/databases/$(database)/documents/matches/__gwlock_$(gw)).data.locked != true
@@ -199,7 +200,6 @@ service cloud.firestore {
     match /predictions/{predictionId} {
       allow read: if signedIn();
 
-      // Admin can always create a prediction, even while the GW is locked.
       allow create: if validPrediction(predictionId) && (
         isAdmin() || (
         isPlayer(request.resource.data.player) &&
@@ -207,8 +207,6 @@ service cloud.firestore {
         )
       );
 
-      // Players can only modify their own prediction while the GW is open.
-      // Admin can always modify predictions.
       allow update: if validPrediction(predictionId) && (
         isAdmin() || (
         isPlayer(request.resource.data.player) &&
