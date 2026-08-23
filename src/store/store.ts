@@ -8,16 +8,19 @@ export interface AppState {
   predictions: Prediction[];
   cards: CardEntry[];
   gameweekLocks: Record<number, boolean>;
+  gameweekCompletions: Record<number, boolean>;
 }
 
-const defaultState: AppState = { matches: [], predictions: [], cards: [], gameweekLocks: {} };
+const defaultState: AppState = { matches: [], predictions: [], cards: [], gameweekLocks: {}, gameweekCompletions: {} };
 const matchesCol = collection(db, 'matches');
 const predictionsCol = collection(db, 'predictions');
 const cardsCol = collection(db, 'cards');
 let _unsubscribers: (() => void)[] = [];
 
 const LOCK_PREFIX = '__gwlock_';
+const COMPLETE_PREFIX = '__gwcomplete_';
 const lockDocId = (gw: number) => `${LOCK_PREFIX}${gw}`;
+const completeDocId = (gw: number) => `${COMPLETE_PREFIX}${gw}`;
 
 function firestoreError(context: string, error: unknown): Error {
   const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : '';
@@ -82,6 +85,7 @@ export const store = {
     let firstMatchSnapshot = true;
     _unsubscribers.push(onSnapshot(matchesCol, snap => {
       const locks: Record<number, boolean> = {};
+      const completions: Record<number, boolean> = {};
       const matches: Match[] = [];
 
       snap.docs.forEach(d => {
@@ -91,11 +95,17 @@ export const store = {
           if (Number.isInteger(gw) && gw >= 1 && gw <= 38) locks[gw] = data.locked === true;
           return;
         }
+        if (data.kind === 'gameweekComplete') {
+          const gw = Number(data.gw);
+          if (Number.isInteger(gw) && gw >= 1 && gw <= 38) completions[gw] = data.complete === true;
+          return;
+        }
         matches.push({ ...data, id: d.id } as Match);
       });
 
       this.state.matches = matches;
       this.state.gameweekLocks = locks;
+      this.state.gameweekCompletions = completions;
       if (firstMatchSnapshot) {
         firstMatchSnapshot = false;
         onMatchesLoaded?.(matches);
@@ -130,6 +140,8 @@ export const store = {
   },
 
   isGameweekLocked(gw: number): boolean { return this.state.gameweekLocks[gw] === true; },
+  isGameweekComplete(gw: number): boolean { return this.state.gameweekCompletions[gw] === true || this.getMatchesByGW(gw).length === 10 && this.getMatchesByGW(gw).every(m => !!m.result); },
+  isGameweekClosed(gw: number): boolean { return this.isGameweekComplete(gw); },
 
   async setGameweekLocked(gw: number, locked: boolean): Promise<void> {
     if (!Number.isInteger(gw) || gw < 1 || gw > 38) throw new Error('Invalid gameweek.');
@@ -147,6 +159,23 @@ export const store = {
     }
   },
 
+  async markGameweekCompleteIfReady(gw: number): Promise<void> {
+    const gwMatches = this.getMatchesByGW(gw);
+    if (gwMatches.length !== 10 || !gwMatches.every(m => !!m.result)) return;
+    try {
+      await setDoc(doc(matchesCol, completeDocId(gw)), {
+        kind: 'gameweekComplete',
+        gw,
+        complete: true,
+        updatedAt: Date.now()
+      });
+      this.state.gameweekCompletions[gw] = true;
+      this._onUpdate?.();
+    } catch (error) {
+      throw firestoreError(`GW${gw} completion could not be recorded`, error);
+    }
+  },
+
   getMatchesByGW(gw: number): Match[] { return this.state.matches.filter(m => m.gw === gw).sort((a, b) => a.matchNo - b.matchNo); },
   getMatch(id: string): Match | undefined { return this.state.matches.find(m => m.id === id); },
 
@@ -156,6 +185,7 @@ export const store = {
       const idx = this.state.matches.findIndex(m => m.id === match.id);
       if (idx >= 0) this.state.matches[idx] = match;
       else this.state.matches.push(match);
+      await this.markGameweekCompleteIfReady(match.gw);
     } catch (error) {
       throw firestoreError('Match could not be saved', error);
     }
