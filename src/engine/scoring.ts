@@ -9,10 +9,6 @@ export interface MirrorEffect {
   sourceAway: number;
 }
 
-/**
- * Returns the predictions that actually count for scoring, plus a record of
- * every Mirror overwrite. Stored predictions are never mutated.
- */
 export function getEffectivePredictions(
   matches: Match[],
   predictions: Prediction[],
@@ -58,6 +54,11 @@ export function getEffectivePredictions(
   }
 
   return { predictions: effectivePredictions, mirrors };
+}
+
+export function isGameweekComplete(gw: number, matches: Match[]): boolean {
+  const gwMatches = matches.filter(m => m.gw === gw);
+  return gwMatches.length > 0 && gwMatches.every(m => !!m.result);
 }
 
 export function calculateGameweekScores(
@@ -177,6 +178,12 @@ export function calculateGameweekScores(
     const hasFloor = gwCards.some(c => c.player === p && c.card === 'floor');
     if (hasFloor && scores[p].finalPoints < 5) scores[p].finalPoints = 5;
   });
+
+  // Nemesis is a GW-end effect. It is deliberately withheld until every
+  // fixture in the gameweek has a result entered by the admin.
+  if (isGameweekComplete(gw, matches)) {
+    applyNemesisSteals(scores, gwCards);
+  }
 
   return scores;
 }
