@@ -12,6 +12,9 @@ import { FIXTURES } from './data/fixtures';
 let currentTab = 'leaderboard';
 let authReady = false;
 
+const baseIsGameweekLocked = store.isGameweekLocked.bind(store);
+store.isGameweekLocked = (gw: number) => baseIsGameweekLocked(gw) || (!isAdmin() && store.isGameweekComplete(gw));
+
 function allowedTab(tab: string, profile: AppProfile | null): boolean {
   if (tab === 'fixtures') return profile?.role === 'admin';
   return ['leaderboard', 'gameweek', 'cardlog'].includes(tab);
