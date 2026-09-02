@@ -3,6 +3,7 @@ export function renderTabs(activeTab: string, isAdmin = false): string {
     { id: 'leaderboard', label: 'Leaderboard' },
     { id: 'gameweek', label: 'Gameweek' },
     { id: 'cardlog', label: 'Card Log' },
+    { id: 'stats', label: 'Stats' },
     ...(isAdmin ? [{ id: 'fixtures', label: 'Fixtures Setup' }] : [])
   ];
 
