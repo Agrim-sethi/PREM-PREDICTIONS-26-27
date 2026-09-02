@@ -88,8 +88,8 @@ function computeStats(): Record<Player, PlayerStats> {
   }
 
   PLAYERS.forEach(p => {
-    // Includes every card effect, including Nemesis. This is intentionally
-    // the same difference used to reconcile against the leaderboard total.
+    // Includes every card effect, including Nemesis. This intentionally uses
+    // the same final score calculation as the leaderboard/gameweek scoring.
     stats[p].cardAidedPoints = stats[p].finalPoints - stats[p].rawPoints;
   });
 
@@ -123,8 +123,9 @@ export function renderStats(): string {
     return matches.length > 0 && matches.every(m => !!m.result);
   }).length;
 
-  const bestAccuracy = winnerBy(rows, p => stats[p].predictionsMade ? stats[p].correctPreds / stats[p].predictionsMade : 0);
-  const mostExact = winnerBy(rows, p => stats[p].exactScores);
+  const bestCorrectAccuracy = winnerBy(rows, p => stats[p].predictionsMade ? stats[p].correctPreds / stats[p].predictionsMade : 0);
+  const bestExactAccuracy = winnerBy(rows, p => stats[p].predictionsMade ? stats[p].exactScores / stats[p].predictionsMade : 0);
+  const bestUniqueAccuracy = winnerBy(rows, p => stats[p].predictionsMade ? stats[p].uniquePreds / stats[p].predictionsMade : 0);
   const mostCardImpact = winnerBy(rows, p => stats[p].cardAidedPoints);
 
   return `<div>
@@ -134,24 +135,27 @@ export function renderStats(): string {
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:18px;">
-      ${statCard('League Leader', rows[0] ?? '—', rows[0] ? `${stats[rows[0]].finalPoints} total pts` : '')}
-      ${statCard('Best Accuracy', bestAccuracy ?? '—', bestAccuracy ? pct(stats[bestAccuracy].correctPreds, stats[bestAccuracy].predictionsMade) : '')}
-      ${statCard('Most Exact Scores', mostExact ?? '—', mostExact ? `${stats[mostExact].exactScores} exact` : '')}
+      ${statCard('Best Correct Pred Accuracy', bestCorrectAccuracy ?? '—', bestCorrectAccuracy ? pct(stats[bestCorrectAccuracy].correctPreds, stats[bestCorrectAccuracy].predictionsMade) : '')}
+      ${statCard('Best Exact Score Accuracy', bestExactAccuracy ?? '—', bestExactAccuracy ? pct(stats[bestExactAccuracy].exactScores, stats[bestExactAccuracy].predictionsMade) : '')}
+      ${statCard('Best Unique Prediction Rate', bestUniqueAccuracy ?? '—', bestUniqueAccuracy ? pct(stats[bestUniqueAccuracy].uniquePreds, stats[bestUniqueAccuracy].predictionsMade) : '')}
       ${statCard('Most Card Impact', mostCardImpact ?? '—', mostCardImpact ? `${stats[mostCardImpact].cardAidedPoints >= 0 ? '+' : ''}${stats[mostCardImpact].cardAidedPoints} pts` : '')}
     </div>
 
     <div class="panel-box" style="background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;overflow-x:auto;">
       <h3 style="font-family:'Oswald',sans-serif;font-size:15px;margin-bottom:12px;text-transform:uppercase;">Full Participant Comparison</h3>
       <div class="table-scroll" tabindex="0" aria-label="Participant statistics table">
-        <table style="width:100%;border-collapse:collapse;text-align:left;font-size:12px;min-width:1060px;">
+        <table style="width:100%;border-collapse:collapse;text-align:left;font-size:12px;min-width:1120px;">
           <thead><tr style="border-bottom:1px solid var(--line);color:var(--muted);font:11px 'JetBrains Mono',monospace;">
-            <th style="padding:8px 5px;">Player</th><th style="padding:8px 5px;">Correct Pred</th><th style="padding:8px 5px;">Exact Scores</th><th style="padding:8px 5px;">Unique Pts</th><th style="padding:8px 5px;">Raw Pts</th><th style="padding:8px 5px;">Scores Aided by Cards</th><th style="padding:8px 5px;">Final Pts</th>
+            <th style="padding:8px 5px;">Player</th><th style="padding:8px 5px;">Correct Pred</th><th style="padding:8px 5px;">Correct %</th><th style="padding:8px 5px;">Exact Scores</th><th style="padding:8px 5px;">Exact %</th><th style="padding:8px 5px;">Unique Predictions</th><th style="padding:8px 5px;">Unique %</th><th style="padding:8px 5px;">Raw Pts</th><th style="padding:8px 5px;">Scores Aided by Cards</th><th style="padding:8px 5px;">Final Pts</th>
           </tr></thead>
           <tbody>${rows.map(p => { const s = stats[p]; return `<tr style="border-bottom:1px solid var(--line);">
             <td style="padding:10px 5px;font-family:'Oswald',sans-serif;font-size:15px;font-weight:bold;">${p}</td>
             <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;">${s.correctPreds} / ${s.predictionsMade}</td>
+            <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;color:var(--pitch);">${pct(s.correctPreds,s.predictionsMade)}</td>
             <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;">${s.exactScores} / ${s.predictionsMade}</td>
+            <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;color:var(--pitch);">${pct(s.exactScores,s.predictionsMade)}</td>
             <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;">${s.uniquePreds} / ${s.predictionsMade}</td>
+            <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;color:var(--pitch);">${pct(s.uniquePreds,s.predictionsMade)}</td>
             <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;font-weight:bold;">${s.rawPoints}</td>
             <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;color:${s.cardAidedPoints >= 0 ? 'var(--pitch)' : 'var(--red)'};">${s.cardAidedPoints >= 0 ? '+' : ''}${s.cardAidedPoints}</td>
             <td style="padding:10px 5px;font-family:'JetBrains Mono',monospace;font-weight:bold;color:var(--chalk);">${s.finalPoints}</td>
@@ -172,6 +176,6 @@ export function renderStats(): string {
       </div>
     </div>
 
-    <div style="margin-top:12px;color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace;line-height:1.5;">Correct Pred = correct outcome predictions ÷ predictions made · Exact Scores and Unique Pts are shown as counts ÷ predictions made. Raw points exclude card effects. Scores Aided by Cards = final points − raw points, including Nemesis.</div>
+    <div style="margin-top:12px;color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace;line-height:1.5;">Correct Pred = correct outcome predictions ÷ predictions made · Exact Scores = exact scoreline predictions ÷ predictions made · Unique Predictions = unique predictions ÷ predictions made. Raw points exclude card effects. Scores Aided by Cards = final points − raw points, including Nemesis.</div>
   </div>`;
 }
