@@ -4,6 +4,7 @@ import { renderTabs, attachTabHandlers } from './components/tabs';
 import { renderLeaderboard, attachLeaderboardHandlers } from './views/leaderboard';
 import { renderGameweek, attachGameweekHandlers } from './views/gameweek';
 import { renderCardLog, attachCardLogHandlers } from './views/cardlog';
+import { renderStats } from './views/stats';
 import { renderFixturesView, attachFixturesHandlers } from './views/fixturesView';
 import { attachLoginHandlers, renderLogin } from './views/login';
 import { getProfile, logout, watchAuth, AppProfile, isAdmin } from './auth';
@@ -17,35 +18,28 @@ store.isGameweekLocked = (gw: number) => baseIsGameweekLocked(gw) || (!isAdmin()
 
 function allowedTab(tab: string, profile: AppProfile | null): boolean {
   if (tab === 'fixtures') return profile?.role === 'admin';
-  return ['leaderboard', 'gameweek', 'cardlog'].includes(tab);
+  return ['leaderboard', 'gameweek', 'cardlog', 'stats'].includes(tab);
 }
 
 function applyCaptainHighlight() {
   const profile = getProfile();
   if (!profile) return;
-
   document.querySelectorAll<HTMLElement>('.captain-highlight').forEach(el => {
     el.classList.remove('captain-highlight');
     el.style.boxShadow = '';
     el.style.borderColor = '';
     el.querySelectorAll('.captain-badge').forEach(b => b.remove());
   });
-
   const gwSelect = document.getElementById('gw-select') as HTMLSelectElement | HTMLInputElement | null;
   const gw = gwSelect ? parseInt(gwSelect.value, 10) : 1;
   if (!Number.isInteger(gw)) return;
-
-  const player = profile.player;
-  const captain = store.getCardsForGW(gw).find(c => c.card === 'captain' && c.player === player);
+  const captain = store.getCardsForGW(gw).find(c => c.card === 'captain' && c.player === profile.player);
   if (!captain || captain.matchNo == null) return;
-
   const match = store.getMatchesByGW(gw).find(m => m.matchNo === captain.matchNo);
   if (!match) return;
-
-  const input = document.querySelector<HTMLInputElement>(`.pred-input[data-match="${match.id}"][data-player="${player}"]`);
+  const input = document.querySelector<HTMLInputElement>(`.pred-input[data-match="${match.id}"][data-player="${profile.player}"]`);
   const box = input?.parentElement?.parentElement as HTMLElement | null;
   if (!box) return;
-
   box.classList.add('captain-highlight');
   box.style.borderColor = 'var(--gold)';
   box.style.boxShadow = '0 0 0 2px var(--gold), 0 0 18px rgba(255, 196, 64, 0.22)';
@@ -53,8 +47,7 @@ function applyCaptainHighlight() {
   badge.className = 'captain-badge';
   badge.textContent = '★ CAPTAIN';
   badge.style.cssText = "font:700 9px 'JetBrains Mono',monospace;color:var(--gold);margin-left:6px;letter-spacing:.04em;";
-  const header = box.firstElementChild;
-  header?.appendChild(badge);
+  box.firstElementChild?.appendChild(badge);
 }
 
 function renderLoginScreen() {
@@ -76,6 +69,7 @@ function renderApp() {
     case 'leaderboard': contentHtml = renderLeaderboard(); break;
     case 'gameweek': contentHtml = renderGameweek(); break;
     case 'cardlog': contentHtml = renderCardLog(); break;
+    case 'stats': contentHtml = renderStats(); break;
     case 'fixtures': contentHtml = renderFixturesView(); break;
   }
 
@@ -106,11 +100,9 @@ function renderApp() {
 
   switch (currentTab) {
     case 'leaderboard': attachLeaderboardHandlers(); break;
-    case 'gameweek':
-      attachGameweekHandlers(renderApp);
-      applyCaptainHighlight();
-      break;
+    case 'gameweek': attachGameweekHandlers(renderApp); applyCaptainHighlight(); break;
     case 'cardlog': attachCardLogHandlers(renderApp); break;
+    case 'stats': break;
     case 'fixtures': attachFixturesHandlers(renderApp); break;
   }
 }
@@ -122,9 +114,7 @@ watchAuth(profile => {
       if (isAdmin()) {
         try {
           await store.seedFixtures(FIXTURES);
-          for (let gw = 1; gw <= 38; gw++) {
-            await store.markGameweekCompleteIfReady(gw);
-          }
+          for (let gw = 1; gw <= 38; gw++) await store.markGameweekCompleteIfReady(gw);
         } catch (error) {
           console.error(error);
         }
