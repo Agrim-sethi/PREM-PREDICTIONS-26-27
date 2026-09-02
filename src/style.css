@@ -20,19 +20,19 @@ body{background:var(--ink);color:var(--chalk);font-family:'Inter',sans-serif;-we
 .race-legend{display:flex;flex-wrap:wrap;gap:10px 14px}
 .race-legend-item{display:inline-flex;align-items:center;gap:6px;font:11px 'JetBrains Mono',monospace;color:var(--muted)}
 .race-legend-item i{width:8px;height:8px;border-radius:50%;display:inline-block;box-shadow:0 0 0 2px rgba(255,255,255,.06)}
-.race-chart-stage{width:100%;overflow:hidden;border-radius:4px;max-height:320px}
+.race-chart-stage{width:100%;overflow:auto;border-radius:4px;max-height:320px}
 .race-chart-stage svg{width:100%;height:auto;display:block;touch-action:none;max-height:280px}
-.race-grid{stroke:var(--line);stroke-width:1;stroke-dasharray:4 8;opacity:.5}
+.race-grid{stroke:var(--line);stroke-width:1;stroke-dasharray:4 8;opacity:.5;pointer-events:none}
 .race-gw-divider{stroke:rgba(147,163,154,.9);stroke-width:1.5;stroke-dasharray:2 7;opacity:.7;pointer-events:none}
-.race-axis-label{fill:var(--muted);font:10px 'JetBrains Mono',monospace}
-.race-gw-label{fill:var(--chalk);opacity:.7;font-size:10px}
-.race-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 1px rgba(0,0,0,.28))}
-.race-line-glow{fill:none;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;opacity:.18}
-.race-dot{stroke:#10151a;stroke-width:1.2;opacity:.75;transition:r .12s ease,opacity .12s ease}
+.race-axis-label{fill:var(--muted);font:10px 'JetBrains Mono',monospace;pointer-events:none}
+.race-gw-label{fill:var(--chalk);opacity:.7;font-size:10px;pointer-events:none}
+.race-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 1px rgba(0,0,0,.28));pointer-events:none}
+.race-line-glow{fill:none;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;opacity:.18;pointer-events:none}
+.race-dot{stroke:#10151a;stroke-width:1.2;opacity:.75;transition:r .12s ease,opacity .12s ease;pointer-events:none}
 .race-dot.is-active{r:4.5;opacity:1}
 .race-hover-dot{stroke:#10151a;stroke-width:1.5;pointer-events:none}
 .race-crosshair{stroke:var(--chalk);stroke-width:1;stroke-dasharray:4 4;opacity:.45;pointer-events:none}
-.race-hit{fill:transparent;cursor:crosshair}
+.race-hit{fill:transparent;cursor:crosshair;pointer-events:all}
 .race-stats{margin-top:14px;min-height:148px;background:var(--ink);border:1px solid var(--line);border-radius:5px;padding:12px 14px;transition:border-color .15s ease}
 .race-stats.is-active{border-color:#3d5348}
 .race-stats-hint{color:var(--muted);font:12px 'JetBrains Mono',monospace;padding:28px 0;text-align:center}
