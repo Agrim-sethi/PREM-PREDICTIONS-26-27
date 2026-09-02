@@ -2,6 +2,7 @@ import './style.css';
 import { store } from './store/store';
 import { renderTabs, attachTabHandlers } from './components/tabs';
 import { renderLeaderboard, attachLeaderboardHandlers } from './views/leaderboard';
+import { prepareRaceChartHover } from './views/raceChartFix';
 import { renderGameweek, attachGameweekHandlers } from './views/gameweek';
 import { renderCardLog, attachCardLogHandlers } from './views/cardlog';
 import { renderStats } from './views/stats';
@@ -99,7 +100,10 @@ function renderApp() {
   });
 
   switch (currentTab) {
-    case 'leaderboard': attachLeaderboardHandlers(); break;
+    case 'leaderboard':
+      prepareRaceChartHover();
+      attachLeaderboardHandlers();
+      break;
     case 'gameweek': attachGameweekHandlers(renderApp); applyCaptainHighlight(); break;
     case 'cardlog': attachCardLogHandlers(renderApp); break;
     case 'stats': break;
