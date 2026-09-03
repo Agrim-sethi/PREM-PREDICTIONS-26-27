@@ -1,4 +1,5 @@
 import './style.css';
+import { inject } from '@vercel/analytics';
 import { store } from './store/store';
 import { renderTabs, attachTabHandlers } from './components/tabs';
 import { renderLeaderboard, attachLeaderboardHandlers } from './views/leaderboard';
@@ -10,6 +11,9 @@ import { renderFixturesView, attachFixturesHandlers } from './views/fixturesView
 import { attachLoginHandlers, renderLogin } from './views/login';
 import { getProfile, logout, watchAuth, AppProfile, isAdmin } from './auth';
 import { FIXTURES } from './data/fixtures';
+
+// Initialize Vercel Web Analytics
+inject();
 
 let currentTab = 'leaderboard';
 let authReady = false;
