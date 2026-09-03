@@ -24,7 +24,7 @@ export function prepareRaceChartHover(): void {
   stage.style.maxWidth = '100%';
   stage.style.overflowX = 'auto';
   stage.style.overflowY = 'hidden';
-  stage.style.webkitOverflowScrolling = 'touch';
+  (stage.style as any).webkitOverflowScrolling = 'touch';
 
   svg.style.width = `${chartWidth}px`;
   svg.style.maxWidth = 'none';
